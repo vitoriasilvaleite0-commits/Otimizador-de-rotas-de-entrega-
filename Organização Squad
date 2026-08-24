@@ -1,0 +1,19 @@
+Divisão de funções da squad
+
+Vitória — Líder da Squad
+
+Responsável por coordenar a equipe, organizar as etapas do projeto, distribuir as tarefas e acompanhar os prazos. Também deverá garantir a comunicação entre os integrantes, verificar o andamento das entregas e auxiliar na tomada de decisões.
+
+Eduardo — Analista Matemático
+
+Responsável pela parte matemática do projeto, incluindo a modelagem do grafo, definição dos vértices, arestas e pesos, construção da matriz de adjacência e validação dos cálculos. Também deverá verificar o funcionamento matemático dos algoritmos BFS, DFS, Dijkstra e A*, além do cálculo de distância e preço por quilômetro.
+
+Henrique — Implementador
+
+Responsável pelo desenvolvimento do sistema. Deverá implementar os algoritmos e a lógica em Java, criar a API do back-end e desenvolver o front-end utilizando HTML, CSS e JavaScript. Também será responsável pela integração entre as partes, validação dos campos e realização dos testes técnicos.
+
+João — Documentador e Apresentador
+
+Responsável por registrar todas as etapas do desenvolvimento, organizar a documentação escrita, explicar a estrutura do sistema, descrever os algoritmos e reunir imagens e resultados dos testes. Também deverá elaborar os slides, organizar o roteiro e conduzir a apresentação do projeto.
+
+Embora cada integrante tenha uma função principal, toda a squad deverá participar da revisão, dos testes e das decisões importantes do projeto.
