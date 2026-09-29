@@ -1,0 +1,5 @@
+spring:
+  application:
+    name: rota-academica
+server:
+  port: 8080
