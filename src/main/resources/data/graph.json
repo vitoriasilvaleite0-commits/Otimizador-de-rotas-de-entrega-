@@ -1,0 +1,28 @@
+{
+  "metadata": {
+    "model": "Grafo acadêmico reduzido da primeira versão",
+    "coordinateSource": "OpenStreetMap via Nominatim",
+    "weightSource": "OSRM público; valores preservados como fallback acadêmico",
+    "verifiedAt": "2026-09-29"
+  },
+  "points": [
+    {"id":"SAUDE","name":"Metrô Saúde","address":"Av. Jabaquara, Saúde","latitude":-23.61851,"longitude":-46.63933,"links":[{"to":"PRACA_ARVORE","fallbackKm":1.25},{"to":"SHOPPING","fallbackKm":2.50}]},
+    {"id":"PRACA_ARVORE","name":"Metrô Praça da Árvore","address":"Av. Jabaquara, Praça da Árvore","latitude":-23.61064,"longitude":-46.63791,"links":[{"to":"SANTA_CRUZ","fallbackKm":1.55},{"to":"SAUDE","fallbackKm":1.20},{"to":"IBIRAPUERA","fallbackKm":3.70}]},
+    {"id":"SANTA_CRUZ","name":"Metrô Santa Cruz","address":"Rua Domingos de Morais, Vila Mariana","latitude":-23.59853,"longitude":-46.63723,"links":[{"to":"VILA_MARIANA","fallbackKm":1.45},{"to":"PRACA_ARVORE","fallbackKm":1.70},{"to":"SHOPPING","fallbackKm":3.72}]},
+    {"id":"VILA_MARIANA","name":"Metrô Vila Mariana","address":"Av. Prof. Noé Azevedo, Vila Mariana","latitude":-23.58906,"longitude":-46.63458,"links":[{"to":"IBIRAPUERA","fallbackKm":3.15},{"to":"SANTA_CRUZ","fallbackKm":1.50}]},
+    {"id":"IBIRAPUERA","name":"Parque Ibirapuera","address":"Ibirapuera, São Paulo","latitude":-23.58741,"longitude":-46.65763,"links":[{"to":"MOEMA","fallbackKm":3.05},{"to":"VILA_MARIANA","fallbackKm":3.30},{"to":"SHOPPING","fallbackKm":6.97}]},
+    {"id":"MOEMA","name":"Metrô Moema","address":"Av. Pavão, Moema","latitude":-23.60373,"longitude":-46.66196,"links":[{"to":"SHOPPING","fallbackKm":5.77},{"to":"IBIRAPUERA","fallbackKm":2.95},{"to":"BROOKLIN","fallbackKm":4.60}]},
+    {"id":"SHOPPING","name":"Shopping Plaza Sul","address":"Praça Leonor Kaupa, Saúde","latitude":-23.62020,"longitude":-46.62770,"links":[{"to":"SAUDE","fallbackKm":2.12},{"to":"JABAQUARA","fallbackKm":4.25},{"to":"MOEMA","fallbackKm":5.99}]},
+    {"id":"JABAQUARA","name":"Terminal Jabaquara","address":"Avenida Engenheiro Armando de Arruda Pereira","latitude":-23.64618,"longitude":-46.64105,"links":[{"to":"SAUDE","fallbackKm":4.27},{"to":"BROOKLIN","fallbackKm":7.23}]},
+    {"id":"BROOKLIN","name":"Metrô Brooklin","address":"Av. Santo Amaro, Brooklin","latitude":-23.62681,"longitude":-46.68834,"links":[{"to":"MOEMA","fallbackKm":4.35},{"to":"JABAQUARA","fallbackKm":7.67}]}
+  ],
+  "storeLinks": [{"to":"SAUDE","fallbackKm":0.45},{"to":"SHOPPING","fallbackKm":2.03}],
+  "demoCustomer": {
+    "name":"Cliente de demonstração no Jabaquara",
+    "address":"Terminal Jabaquara, São Paulo - SP",
+    "latitude":-23.64680,
+    "longitude":-46.64150,
+    "connectionsToCustomer":{"JABAQUARA":0.42,"SAUDE":3.65,"SHOPPING":3.90},
+    "connectionsFromCustomer":{"JABAQUARA":0.46,"SAUDE":3.78,"SHOPPING":4.05}
+  }
+}
