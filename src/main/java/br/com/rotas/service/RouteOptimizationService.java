@@ -15,6 +15,7 @@ import java.util.List;
 
 @Service
 public class RouteOptimizationService {
+  private static final double MAX_COMPLETE_ROUTE_RATIO = 1.35;
   private final GraphService graphs;
   private final DijkstraService dijkstra;
 
@@ -35,9 +36,20 @@ public class RouteOptimizationService {
     List<Edge> segments = selectedSegments(graph, matrix, result.path());
     RouteData visualRoute = graphs.roadGeometryForPath(result.path(), graph,
         result.totalDistanceKm());
+    RouteData directReference = graphs.roadGeometryForPath(List.of(origin, customer.id()), graph,
+        result.totalDistanceKm());
+    double routeDistance = visualRoute.fallback()
+        ? result.totalDistanceKm() : visualRoute.distanceKm();
+    double directDistance = directReference.fallback()
+        ? routeDistance : directReference.distanceKm();
+    double detourRatio = directDistance > 0 ? routeDistance / directDistance : 1;
+    if (detourRatio > MAX_COMPLETE_ROUTE_RATIO) {
+      throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "EXCESSIVE_ROUTE_DETOUR",
+          "Os pontos atuais produziriam uma volta excessiva.");
+    }
     boolean fallback = segments.stream().anyMatch(Edge::fallback) || visualRoute.fallback();
     return new OptimizationResult(graph, serialize(matrix), origin, customer.id(), result,
-        segments, visualRoute.geometry(), fallback);
+        segments, visualRoute.geometry(), fallback, routeDistance, directDistance, detourRatio);
   }
 
   private static List<Edge> selectedSegments(Graph graph, AdjacencyMatrix matrix,
@@ -68,5 +80,6 @@ public class RouteOptimizationService {
   public record OptimizationResult(Graph graph, List<List<Double>> matrix, String origin,
                                    String destination, DijkstraResult dijkstra,
                                    List<Edge> segments, List<double[]> routeGeometry,
-                                   boolean fallbackUsed) {}
+                                   boolean fallbackUsed, double routeDistanceKm,
+                                   double directReferenceDistanceKm, double detourRatio) {}
 }
