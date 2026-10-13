@@ -8,12 +8,20 @@ Protótipo acadêmico em Java para estudar grafos, matriz de adjacência pondera
 - Eduardo Dias
 - Vitória Silva
 
-## Primeira etapa
+## Versão 1 — grafo fixo
 
-Esta etapa inicial estabelece a aplicação Spring Boot, o Maven Wrapper e a página servida pelo próprio backend.
+Nesta versão, a loja é a origem fixa e os pontos intermediários ficam versionados em `src/main/resources/data/graph.json`. O cliente é incluído depois da confirmação do endereço.
+
+O OSRM fornece os pesos rodoviários das ligações e a geometria visual. O menor caminho global é escolhido pelo algoritmo de Dijkstra implementado manualmente em Java.
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
 A aplicação fica disponível em `http://localhost:8080`.
+
+## Testes
+
+```bash
+./mvnw test
+```
