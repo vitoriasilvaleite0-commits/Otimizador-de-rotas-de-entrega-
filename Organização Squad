@@ -1,19 +1,17 @@
 Divisão de funções da squad
 
-Vitória — Líder da Squad
+Vitória Silva — Modelagem matemática, interface e documentação
 
-Responsável por coordenar a equipe, organizar as etapas do projeto, distribuir as tarefas e acompanhar os prazos. Também deverá garantir a comunicação entre os integrantes, verificar o andamento das entregas e auxiliar na tomada de decisões.
+Responsável por apoiar a modelagem do grafo e da matriz de adjacência, desenvolver partes da experiência visual, registrar a evolução das sprints e revisar a documentação acadêmica.
 
-Eduardo — Analista Matemático
+Eduardo Dias — Backend geográfico e otimização
 
-Responsável pela parte matemática do projeto, incluindo a modelagem do grafo, definição dos vértices, arestas e pesos, construção da matriz de adjacência e validação dos cálculos. Também deverá verificar o funcionamento matemático dos algoritmos BFS, DFS, Dijkstra e A*, além do cálculo de distância e preço por quilômetro.
+Responsável pelas integrações geográficas, pelos serviços de otimização, pelas validações de geometria e pelas correções relacionadas aos trajetos calculados.
 
-Henrique — Implementador
+João Victor — Estrutura, integração e validação
 
-Responsável pelo desenvolvimento do sistema. Deverá implementar os algoritmos e a lógica em Java, criar a API do back-end e desenvolver o front-end utilizando HTML, CSS e JavaScript. Também será responsável pela integração entre as partes, validação dos campos e realização dos testes técnicos.
+Responsável pela estrutura geral do projeto, integração entre backend e frontend, geração dinâmica do grafo, execução dos testes e consolidação das entregas.
 
-João — Documentador e Apresentador
+Henrique participou da formação inicial da squad, mas deixou a faculdade antes desta etapa. A continuidade do projeto passou a ser responsabilidade de João Victor, Eduardo Dias e Vitória Silva.
 
-Responsável por registrar todas as etapas do desenvolvimento, organizar a documentação escrita, explicar a estrutura do sistema, descrever os algoritmos e reunir imagens e resultados dos testes. Também deverá elaborar os slides, organizar o roteiro e conduzir a apresentação do projeto.
-
-Embora cada integrante tenha uma função principal, toda a squad deverá participar da revisão, dos testes e das decisões importantes do projeto.
+Embora cada integrante possua áreas principais de atuação, as decisões, revisões, testes e entregas são realizados coletivamente.
