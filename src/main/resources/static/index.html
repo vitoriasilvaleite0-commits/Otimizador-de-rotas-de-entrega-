@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Rota Acadêmica — Dijkstra</title>
+  <link rel="stylesheet" href="/vendor/leaflet.css"><link rel="stylesheet" href="/css/app.css"><link rel="stylesheet" href="/css/layout-fix.css">
+</head>
+<body>
+<header class="hero"><div><span class="eyebrow">GRAFO DINÂMICO • MATRIZ • DIJKSTRA</span><h1>Routify Acadêmico</h1><p>Escolha a origem, gere a topologia e acompanhe o menor caminho.</p></div><div class="status"><span class="pulse"></span><span id="apiStatus">Carregando serviços…</span></div></header>
+<main>
+  <section class="grid top">
+    <article class="card search-card"><div class="step-tag">1</div><h2>Defina o ponto de partida</h2><p class="muted">Pesquise a loja ou origem, confirme no mapa e gere o grafo da região.</p>
+      <form id="originSearchForm"><label for="originAddress">Endereço de partida</label><div class="input-row"><input id="originAddress" maxlength="180" placeholder="Ex.: Av. Paulista, 1000" required><button type="submit">Buscar origem</button></div></form>
+      <button id="defaultOriginButton" class="secondary wide" type="button">Usar loja de demonstração</button><div id="originResults" class="results" aria-live="polite"></div>
+      <div id="originSelection" class="selection"><strong>Origem selecionada</strong><p id="selectedOriginAddress">Carregando loja configurada…</p><small id="selectedOriginCoords"></small><p class="hint">Clique no mapa para ajustar a origem antes de gerar.</p>
+        <label for="graphRadius">Raio da área atendida</label><div class="radius-row"><input id="graphRadius" type="number" min="3" max="20" step="1" value="10" inputmode="decimal"><span>km</span></div>
+        <button id="generateGraphButton" class="wide" type="button">Gerar grafo da região</button>
+      </div>
+      <p id="graphGenerationStatus" class="generation-status" aria-live="polite">O grafo fixo está disponível enquanto uma nova região não é gerada.</p>
+      <hr>
+      <div class="step-tag">2</div><h2>Escolha o destino</h2><p class="muted">Pesquise uma vez, confira o cliente no mapa e confirme.</p>
+      <form id="searchForm"><label for="address">Endereço do cliente</label><div class="input-row"><input id="address" maxlength="180" placeholder="Ex.: Av. Washington Luís, 5859" required><button type="submit">Buscar endereço</button></div></form>
+      <button id="demoButton" class="secondary wide">Usar cliente de demonstração</button><div id="searchResults" class="results" aria-live="polite"></div>
+      <div id="selection" class="selection hidden"><strong>Destino selecionado</strong><p id="selectedAddress"></p><small id="selectedCoords"></small><p class="hint">Clique no mapa para ajustar o marcador.</p><button id="confirmButton" class="wide">Confirmar e calcular rota</button></div>
+    </article>
+    <article class="card map-card"><div class="map-title"><div><div class="step-tag">3</div><h2>Confira no mapa</h2></div><div class="legend"><span><i class="dot area"></i>Área atendida</span><span><i class="dot store"></i>Origem</span><span><i class="dot node"></i>Ponto</span><span><i class="dot customer"></i>Cliente</span></div></div><div id="map" aria-label="Mapa do grafo acadêmico e da área atendida"></div><p class="map-help">A mancha verde clara delimita a área atendida. As linhas representam apenas as ligações dirigidas permitidas no grafo acadêmico.</p></article>
+  </section>
+  <section id="resultCard" class="card result hidden" aria-live="polite"><div><span class="eyebrow">MENOR CAMINHO ENCONTRADO PELO JAVA</span><h2 id="routePath"></h2><p id="routeMeta"></p></div><div id="distanceBadge" class="distance"></div></section>
+  <section class="grid learning">
+    <article class="card matrix-card"><div class="step-tag">4</div><h2>Matriz de adjacência ponderada</h2><p class="muted"><code>D = [dij]</code>: linha é a origem, coluna é o destino; “∞” significa ausência de ligação direta.</p><div id="vertexLegend" class="chips"></div><div class="table-wrap"><table id="matrixTable"><caption class="sr-only">Matriz de distâncias em quilômetros</caption></table></div></article>
+    <article class="card simulation"><div class="step-tag">5</div><h2>Simulação do Dijkstra</h2><p id="simulationMessage" class="explanation" aria-live="polite">Calcule uma rota para liberar a simulação.</p>
+      <div class="controls"><button id="startBtn" disabled>Iniciar simulação</button><button id="prevBtn" class="secondary" disabled>Passo anterior</button><button id="nextBtn" class="secondary" disabled>Próximo passo</button><button id="autoBtn" class="secondary" disabled>Executar automaticamente</button><button id="pauseBtn" class="secondary" disabled>Pausar</button><button id="resetBtn" class="ghost" disabled>Reiniciar</button></div>
+      <div class="step-grid"><div><small>PASSO</small><strong id="stepNumber">—</strong></div><div><small>VÉRTICE ATUAL</small><strong id="currentVertex">—</strong></div><div><small>VISITADOS</small><strong id="visitedVertices">—</strong></div></div>
+      <div id="relaxations" class="relaxations"></div><h3>Distâncias temporárias e predecessores</h3><div id="distanceState" class="distance-state muted">Nenhuma execução.</div>
+    </article>
+  </section>
+</main>
+<footer>Projeto acadêmico demonstrativo • Leaflet + © colaboradores do OpenStreetMap • Pesos em quilômetros</footer>
+<div id="toast" role="alert" aria-live="assertive"></div>
+<script src="/vendor/leaflet.js"></script><script src="/js/app.js"></script>
+</body></html>

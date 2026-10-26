@@ -1,0 +1,41 @@
+{
+  "metadata": {
+    "model": "Grafo acadêmico configurável; não representa a malha urbana oficial",
+    "coordinateSource": "OpenStreetMap via Nominatim",
+    "weightSource": "OSRM público, perfil driving; valores arredondados e preservados apenas como fallback acadêmico",
+    "verifiedAt": "2026-09-29"
+  },
+  "points": [
+    {"id":"SAUDE","name":"Metrô Saúde","address":"Av. Jabaquara, Saúde","latitude":-23.61851,"longitude":-46.63933,"links":[{"to":"PRACA_ARVORE","fallbackKm":1.25},{"to":"SHOPPING","fallbackKm":2.50}]},
+    {"id":"PRACA_ARVORE","name":"Metrô Praça da Árvore","address":"Av. Jabaquara, Praça da Árvore","latitude":-23.61064,"longitude":-46.63791,"links":[{"to":"SANTA_CRUZ","fallbackKm":1.55},{"to":"SAUDE","fallbackKm":1.20},{"to":"IBIRAPUERA","fallbackKm":3.70}]},
+    {"id":"SANTA_CRUZ","name":"Metrô Santa Cruz","address":"Rua Domingos de Morais, Vila Mariana","latitude":-23.59853,"longitude":-46.63723,"links":[{"to":"VILA_MARIANA","fallbackKm":1.45},{"to":"PRACA_ARVORE","fallbackKm":1.70},{"to":"SHOPPING","fallbackKm":3.72}]},
+    {"id":"VILA_MARIANA","name":"Metrô Vila Mariana","address":"Av. Prof. Noé Azevedo, Vila Mariana","latitude":-23.58906,"longitude":-46.63458,"links":[{"to":"IBIRAPUERA","fallbackKm":3.15},{"to":"SANTA_CRUZ","fallbackKm":1.50}]},
+    {"id":"IBIRAPUERA","name":"Parque Ibirapuera - área interna","address":"Via interna próxima à Rua Antônio de Queiroga, Ibirapuera","latitude":-23.58741,"longitude":-46.65763,"links":[{"to":"MOEMA","fallbackKm":3.05},{"to":"VILA_MARIANA","fallbackKm":3.30},{"to":"SHOPPING","fallbackKm":6.97}]},
+    {"id":"MOEMA","name":"Metrô Moema","address":"Av. Pavão, Moema","latitude":-23.60373,"longitude":-46.66196,"links":[{"to":"SHOPPING","fallbackKm":5.77},{"to":"IBIRAPUERA","fallbackKm":2.95},{"to":"BROOKLIN","fallbackKm":4.60}]},
+    {"id":"SHOPPING","name":"Corredor viário próximo ao Shopping Plaza Sul","address":"Avenida Professor Abraão de Morais, Vila do Bosque","latitude":-23.6205364,"longitude":-46.6280997,"links":[{"to":"SAUDE","fallbackKm":2.12},{"to":"JABAQUARA","fallbackKm":4.25},{"to":"MOEMA","fallbackKm":5.99}]},
+    {"id":"JABAQUARA","name":"Corredor viário próximo ao Terminal Jabaquara","address":"Avenida Engenheiro Armando de Arruda Pereira, Cidade Vargas","latitude":-23.6459641,"longitude":-46.6407524,"links":[{"to":"SAUDE","fallbackKm":4.27},{"to":"BROOKLIN","fallbackKm":7.23},{"to":"CAMPO_GRANDE","fallbackKm":8.39}]},
+    {"id":"BROOKLIN","name":"Metrô Brooklin","address":"Av. Santo Amaro, Brooklin","latitude":-23.62681,"longitude":-46.68834,"links":[{"to":"MOEMA","fallbackKm":4.35},{"to":"JABAQUARA","fallbackKm":7.67},{"to":"SANTO_AMARO","fallbackKm":8.48}]},
+
+    {"id":"SANTO_AMARO","name":"Estação Santo Amaro","address":"Av. Padre José Maria, Santo Amaro","latitude":-23.65613,"longitude":-46.71923,"links":[{"to":"BROOKLIN","fallbackKm":8.09},{"to":"LARGO_TREZE","fallbackKm":4.58},{"to":"ESTACAO_SOCORRO","fallbackKm":1.12}]},
+    {"id":"LARGO_TREZE","name":"Metrô Largo Treze","address":"Av. Padre José Maria, Santo Amaro","latitude":-23.65446,"longitude":-46.71017,"links":[{"to":"SANTO_AMARO","fallbackKm":6.19},{"to":"ESTACAO_SOCORRO","fallbackKm":2.72}]},
+    {"id":"ESTACAO_SOCORRO","name":"Estação Socorro","address":"Av. das Nações Unidas, Santo Amaro","latitude":-23.66282,"longitude":-46.71119,"links":[{"to":"LARGO_TREZE","fallbackKm":3.46},{"to":"SANTO_AMARO","fallbackKm":5.99},{"to":"JURUBATUBA","fallbackKm":2.19},{"to":"VELEIROS","fallbackKm":3.69}]},
+    {"id":"JURUBATUBA","name":"Estação Jurubatuba","address":"Acesso CPTM Jurubatuba, Campo Grande","latitude":-23.67740,"longitude":-46.70231,"links":[{"to":"ESTACAO_SOCORRO","fallbackKm":4.33},{"to":"CAMPO_GRANDE","fallbackKm":3.82},{"to":"VELEIROS","fallbackKm":4.39},{"to":"INTERLAGOS","fallbackKm":4.79},{"to":"AUTODROMO","fallbackKm":4.88}]},
+    {"id":"VELEIROS","name":"Veleiros","address":"Avenida Coronel Octaviano de Freitas Costa, Socorro","latitude":-23.6796950,"longitude":-46.7090264,"links":[{"to":"ESTACAO_SOCORRO","fallbackKm":4.36},{"to":"JURUBATUBA","fallbackKm":4.34},{"to":"INTERLAGOS","fallbackKm":3.87},{"to":"CIDADE_DUTRA","fallbackKm":4.77}]},
+    {"id":"CAMPO_GRANDE","name":"Acesso viário ao Shopping Interlagos","address":"Rua do Shopping Interlagos, Campo Grande","latitude":-23.6780783,"longitude":-46.6761105,"links":[{"to":"JABAQUARA","fallbackKm":8.36},{"to":"JURUBATUBA","fallbackKm":3.90},{"to":"INTERLAGOS","fallbackKm":5.20},{"to":"AUTODROMO","fallbackKm":5.47},{"to":"PRIMAVERA_INTERLAGOS","fallbackKm":7.31}]},
+    {"id":"INTERLAGOS","name":"Interlagos","address":"Avenida Interlagos, Interlagos","latitude":-23.7014463,"longitude":-46.7014703,"links":[{"to":"VELEIROS","fallbackKm":2.92},{"to":"JURUBATUBA","fallbackKm":3.90},{"to":"CAMPO_GRANDE","fallbackKm":4.19},{"to":"AUTODROMO","fallbackKm":2.38},{"to":"CIDADE_DUTRA","fallbackKm":2.06}]},
+    {"id":"AUTODROMO","name":"Estação Autódromo","address":"Rua Plínio Schmidt, Cidade Dutra","latitude":-23.70561,"longitude":-46.68817,"links":[{"to":"JURUBATUBA","fallbackKm":5.11},{"to":"CAMPO_GRANDE","fallbackKm":5.35},{"to":"INTERLAGOS","fallbackKm":2.24},{"to":"CIDADE_DUTRA","fallbackKm":2.75},{"to":"PRIMAVERA_INTERLAGOS","fallbackKm":2.35}]},
+    {"id":"CIDADE_DUTRA","name":"Cidade Dutra","address":"Avenida Senador Teotônio Vilela, Cidade Dutra","latitude":-23.7166982,"longitude":-46.6993112,"links":[{"to":"VELEIROS","fallbackKm":4.82},{"to":"INTERLAGOS","fallbackKm":2.01},{"to":"AUTODROMO","fallbackKm":2.73},{"to":"PRIMAVERA_INTERLAGOS","fallbackKm":1.28},{"to":"CAPELA_SOCORRO","fallbackKm":0.77}]},
+    {"id":"PRIMAVERA_INTERLAGOS","name":"Estação Primavera-Interlagos","address":"Rua Jequirituba, Cidade Dutra","latitude":-23.72342,"longitude":-46.69174,"links":[{"to":"CAMPO_GRANDE","fallbackKm":7.11},{"to":"INTERLAGOS","fallbackKm":3.11},{"to":"AUTODROMO","fallbackKm":2.38},{"to":"CIDADE_DUTRA","fallbackKm":1.69},{"to":"CAPELA_SOCORRO","fallbackKm":1.88},{"to":"GRAJAU","fallbackKm":1.67}]},
+    {"id":"CAPELA_SOCORRO","name":"Prefeitura Regional Capela do Socorro","address":"Rua Cassiano dos Santos, 499, Jardim Iporanga","latitude":-23.72052,"longitude":-46.70178,"links":[{"to":"CIDADE_DUTRA","fallbackKm":1.25},{"to":"PRIMAVERA_INTERLAGOS","fallbackKm":1.39},{"to":"GRAJAU","fallbackKm":2.68}]},
+    {"id":"GRAJAU","name":"Estação Grajaú","address":"Acesso à Estação Grajaú, Jardim Jordanópolis","latitude":-23.73638,"longitude":-46.69708,"links":[{"to":"CAPELA_SOCORRO","fallbackKm":3.46},{"to":"CIDADE_DUTRA","fallbackKm":3.27},{"to":"PRIMAVERA_INTERLAGOS","fallbackKm":2.07}]}
+  ],
+  "storeLinks": [{"to":"SAUDE","fallbackKm":0.45},{"to":"SHOPPING","fallbackKm":2.03}],
+  "demoCustomer": {
+    "name":"Cliente de demonstração em Interlagos",
+    "address":"Autódromo José Carlos Pace, Av. Senador Teotônio Vilela, 261, Interlagos",
+    "latitude":-23.70182,
+    "longitude":-46.69692,
+    "connectionsToCustomer":{"INTERLAGOS":0.90,"AUTODROMO":1.29,"CIDADE_DUTRA":2.21},
+    "connectionsFromCustomer":{"INTERLAGOS":0.93,"AUTODROMO":1.39,"CIDADE_DUTRA":2.89}
+  }
+}

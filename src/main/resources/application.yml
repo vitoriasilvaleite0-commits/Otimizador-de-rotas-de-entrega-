@@ -1,0 +1,65 @@
+spring:
+  application:
+    name: rota-academica
+  jackson:
+    serialization:
+      indent-output: true
+server:
+  port: 8080
+app:
+  demo-mode: true
+  store:
+    id: STORE
+    name: Loja Rota Sul (exemplo acadêmico)
+    address: Avenida Jabaquara, 2049 - Saúde, São Paulo - SP
+    latitude: -23.61562
+    longitude: -46.63918
+  region:
+    # Caixa externa usada para restringir a consulta ao Nominatim.
+    min-latitude: -23.745
+    max-latitude: -23.578
+    min-longitude: -46.727
+    max-longitude: -46.623
+    viewbox: "-46.727,-23.578,-46.623,-23.745"
+    # Polígono acadêmico que acompanha os vértices extremos com pequena margem.
+    # A mesma geometria é usada na validação do backend e desenhada no Leaflet.
+    boundary:
+      - latitude: -23.580
+        longitude: -46.665
+      - latitude: -23.582
+        longitude: -46.625
+      - latitude: -23.650
+        longitude: -46.625
+      - latitude: -23.743
+        longitude: -46.688
+      - latitude: -23.743
+        longitude: -46.706
+      - latitude: -23.696
+        longitude: -46.716
+      - latitude: -23.650
+        longitude: -46.725
+  external:
+    nominatim:
+      base-url: https://nominatim.openstreetmap.org
+      user-agent: "RotaAcademicaZonaSul/1.0 (contato: exemplo-academico@localhost)"
+      timeout-seconds: 5
+      min-interval-millis: 1000
+    osrm:
+      base-url: https://router.project-osrm.org
+      timeout-seconds: 5
+    overpass:
+      base-url: https://overpass-api.de/api/interpreter
+      timeout-seconds: 25
+  graph-generation:
+    enabled: true
+    default-radius-km: 10
+    min-radius-km: 3
+    max-radius-km: 20
+    sectors: 8
+    rings: 2
+    minimum-points: 8
+    minimum-spacing-km: 0.6
+    max-detour-ratio: 3.5
+    # Servidores públicos recebem no máximo uma renovação diária por grafo ativo.
+    refresh-interval-millis: 86400000
+    cache-max-entries: 12

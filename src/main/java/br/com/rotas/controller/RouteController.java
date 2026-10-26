@@ -1,0 +1,4 @@
+package br.com.rotas.controller;
+import br.com.rotas.domain.*;import br.com.rotas.service.*;import jakarta.validation.Valid;import jakarta.validation.constraints.*;import org.springframework.web.bind.annotation.*;
+@RestController @RequestMapping("/api/routes")
+public class RouteController {private final RouteOptimizationService service;public RouteController(RouteOptimizationService s){service=s;}@PostMapping("/optimize")public RouteOptimizationService.OptimizationResult optimize(@Valid @RequestBody ClientRequest r){return service.optimize(new Point("CLIENT",r.name(),r.address(),r.latitude(),r.longitude(),PointType.CUSTOMER),r.graphId());}public record ClientRequest(@NotBlank @Size(max=120) String name,@NotBlank @Size(max=240) String address,@DecimalMin("-90") @DecimalMax("90") double latitude,@DecimalMin("-180") @DecimalMax("180") double longitude,@Size(max=40) String graphId){}}
