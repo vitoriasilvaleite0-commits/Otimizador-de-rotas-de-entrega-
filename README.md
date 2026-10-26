@@ -87,9 +87,59 @@ A matriz `D = [dij]` guarda na linha `i` e coluna `j` a distância em quilômetr
 
 No JSON da API, infinito é serializado como `null`. O Dijkstra inicializa a origem com zero, escolhe o vértice não visitado de menor distância, relaxa as arestas, registra predecessores e reconstrói o caminho. Veja [docs/MATHEMATICAL_MODEL.md](docs/MATHEMATICAL_MODEL.md).
 
-## Executar
+## Como baixar e executar
 
-Requisito: JDK 21 ou superior.
+### 1. Instale os pré-requisitos
+
+É necessário ter:
+
+- **Git** para baixar o repositório;
+- **JDK 21 ou superior** para compilar e executar a aplicação;
+- conexão com a internet na primeira execução, pois o Maven Wrapper baixa o Maven 3.9.11 automaticamente.
+
+Confirme as instalações em um terminal:
+
+```text
+git --version
+java -version
+```
+
+O comando `java -version` deve informar a versão 21 ou uma versão posterior. Não é necessário instalar o Maven separadamente.
+
+### 2. Baixe o projeto
+
+No terminal, execute:
+
+```bash
+git clone https://github.com/vitoriasilvaleite0-commits/Otimizador-de-rotas-de-entrega-.git
+cd Otimizador-de-rotas-de-entrega-
+```
+
+Se preferir usar **Code → Download ZIP** no GitHub, extraia o arquivo e abra o terminal dentro da pasta extraída.
+
+Antes de continuar, confirme que a pasta aberta contém `pom.xml`, `mvnw` e `mvnw.cmd`. No Linux, macOS ou Git Bash, use:
+
+```bash
+ls pom.xml mvnw mvnw.cmd
+```
+
+No Windows PowerShell, use:
+
+```powershell
+Get-ChildItem pom.xml,mvnw,mvnw.cmd
+```
+
+No Prompt de Comando do Windows, use:
+
+```bat
+dir pom.xml mvnw mvnw.cmd
+```
+
+Se o terminal informar que `./mvnw` ou `mvnw.cmd` não existe, entre na pasta extraída ou clonada com `cd` antes de tentar novamente.
+
+### 3. Teste, compile e inicie
+
+#### Linux, macOS ou Git Bash
 
 ```bash
 ./mvnw test
@@ -97,7 +147,25 @@ Requisito: JDK 21 ou superior.
 ./mvnw spring-boot:run
 ```
 
-Abra `http://localhost:8080`.
+Se o sistema negar permissão para executar o arquivo, rode uma vez `chmod +x mvnw` e repita os comandos.
+
+#### Windows PowerShell
+
+```powershell
+.\mvnw.cmd test
+.\mvnw.cmd clean package
+.\mvnw.cmd spring-boot:run
+```
+
+#### Prompt de Comando do Windows (CMD)
+
+```bat
+mvnw.cmd test
+mvnw.cmd clean package
+mvnw.cmd spring-boot:run
+```
+
+Os comandos devem ser executados na ordem apresentada. Quando `spring-boot:run` indicar que a aplicação foi iniciada, abra `http://localhost:8080` no navegador. Mantenha esse terminal aberto enquanto estiver usando o sistema e pressione `Ctrl + C` para encerrar o servidor.
 
 ## Fluxo principal
 
