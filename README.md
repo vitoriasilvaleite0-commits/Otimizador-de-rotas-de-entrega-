@@ -91,13 +91,31 @@ No JSON da API, infinito é serializado como `null`. O Dijkstra inicializa a ori
 
 Requisito: JDK 21 ou superior.
 
+No Linux, macOS ou Git Bash:
+
 ```bash
 ./mvnw test
 ./mvnw clean package
 ./mvnw spring-boot:run
 ```
 
-Abra `http://localhost:8080`.
+No Windows PowerShell:
+
+```powershell
+.\mvnw.cmd test
+.\mvnw.cmd clean package
+.\mvnw.cmd spring-boot:run
+```
+
+No Prompt de Comando do Windows (CMD):
+
+```bat
+mvnw.cmd test
+mvnw.cmd clean package
+mvnw.cmd spring-boot:run
+```
+
+Depois, abra `http://localhost:8080` no navegador.
 
 ## Fluxo principal
 
