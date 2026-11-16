@@ -39,9 +39,12 @@ $('zoomIn').onclick = () => map.zoomIn();
 $('zoomOut').onclick = () => map.zoomOut();
 
 const narrow = () => matchMedia('(max-width: 960px)').matches;
+const studying = () => $('app').classList.contains('studying');
+// Enquadra o mapa no espaço livre: à direita do painel da loja, ou à esquerda da tela de estudo.
 function fitPadding() {
   if (narrow()) return {padding: [28, 28]};
-  return {paddingTopLeft: [$('right').previousElementSibling.offsetWidth + 56, 48], paddingBottomRight: [$('right').offsetWidth + 56, 72]};
+  if (studying()) return {paddingTopLeft: [48, 48], paddingBottomRight: [$('right').offsetWidth + 64, 72]};
+  return {paddingTopLeft: [$('right').previousElementSibling.offsetWidth + 56, 48], paddingBottomRight: [56, 72]};
 }
 function fitPoints(points, maxZoom = 14) {
   map.invalidateSize();
@@ -267,12 +270,16 @@ $('generateGraphButton').addEventListener('click', async () => {
     if (state.originMarker) { map.removeLayer(state.originMarker); state.originMarker = null; }
     applyGraph(data, true); state.editMode = null;
     state.areaReady = true; setClientLocked(false);
+    // o raio usado passa a ser o da loja cadastrada
+    if (state.store && state.store.radiusKm !== radiusKm) { state.store.radiusKm = radiusKm; writeStore(state.store); }
     const intermediates = data.graph.points.filter(p => p.type === 'INTERMEDIATE').length;
     const source = data.graphSource === 'OSRM_RADIAL_DYNAMIC' ? 'pontos novos nas ruas e pesos do OSRM'
       : data.graphSource?.startsWith('LOCAL_') ? 'pontos locais verificados e pesos aproximados'
       : data.graphSource === 'GRAPH_JSON_FALLBACK' ? 'o grafo de demonstração, porque o serviço de mapas não respondeu'
       : data.fallbackUsed ? 'ruas do OpenStreetMap e pesos aproximados' : 'ruas do OpenStreetMap e pesos do OSRM';
-    status.className = 'hint ok'; status.textContent = `Área pronta: ${intermediates} pontos, ${data.graph.edges.length} ligações, com ${source}.`;
+    // painel limpo: a contagem já aparece no título da seção; a origem dos dados fica no tooltip
+    status.className = 'hint'; status.textContent = '';
+    $('graphInfo').title = `${intermediates} pontos intermediários, com ${source}.`;
     setHint('Loja definida. Agora escolha o cliente dentro da área.');
     $('address').focus();
   } catch (error) {
@@ -358,7 +365,10 @@ function renderRoute(data) {
   if (rejected) parts.push(`${rejected} ${rejected === 1 ? 'ponto intermediário foi descartado' : 'pontos intermediários foram descartados'} por desvio.`);
   if (data.directSafetyConnectionUsed) parts.push('Os desvios pelos pontos intermediários eram longos demais, então a rota usa a ligação direta.');
   if (missingGeometry) parts.push('Trechos tracejados são ligações esquemáticas.');
-  $('distanceBadge').innerHTML = `${fmt(data.dijkstra.totalDistanceKm)}<span>km</span>`;
+  const km = num(data.dijkstra.totalDistanceKm);
+  $('distanceBadge').innerHTML = `${fmt(km)}<span>km</span>`;
+  renderDeliveryStats(km);
+  renderNavLinks(data.graph);
   $('routeMeta').textContent = parts.join(' ');
   const segment = (a, b) => state.segments.find(s => s.from === a && s.to === b)?.distanceKm ?? num(state.matrix[state.ids.indexOf(a)]?.[state.ids.indexOf(b)]);
   let acc = 0;
@@ -367,9 +377,43 @@ function renderRoute(data) {
     const t = state.types.get(id);
     const icon = t === 'STORE' ? `<span class="badge-icon origin">${ICON_HOME}</span>` : t === 'CUSTOMER' ? `<span class="badge-icon client">${ICON_PIN}</span>` : '<span class="stop-dot" aria-hidden="true"></span>';
     const sub = t === 'STORE' ? 'Saída da loja' : t === 'CUSTOMER' ? 'Entrega' : label(id);
-    return `<li>${icon}<span><b title="${esc(nameOf(id))}">${esc(nameOf(id))}</b><small>${esc(sub)}</small></span><span class="km num">${i ? fmt(acc) + ' km' : 'início'}</span></li>`;
+    const name = t === 'STORE' && state.store?.name ? state.store.name : nameOf(id);
+    return `<li>${icon}<span><b title="${esc(name)}">${esc(name)}</b><small>${esc(sub)}</small></span><span class="km num">${i ? fmt(acc) + ' km' : 'início'}</span></li>`;
   }).join('');
   $('resultCard').hidden = false;
+}
+
+/* ===== Valor da entrega: distância da rota × valor por km cadastrado ===== */
+function renderDeliveryStats(km) {
+  const price = state.store?.pricePerKm;
+  if (Number.isFinite(km) && Number.isFinite(price)) {
+    $('routePrice').textContent = money(km * price);
+    $('routePriceCalc').textContent = `${fmt(km)} km × ${money(price)}`;
+  } else {
+    $('routePrice').textContent = '—';
+    $('routePriceCalc').textContent = 'Cadastre o valor por km da loja';
+  }
+}
+
+/* ===== Abrir a rota no Google Maps ou no Waze ===== */
+function renderNavLinks(graph) {
+  const byId = new Map(graph.points.map(p => [p.id, p]));
+  const store = graph.points.find(p => p.type === 'STORE'), customer = graph.points.find(p => p.type === 'CUSTOMER');
+  const links = [$('openGoogleMaps'), $('openWaze')];
+  if (!store || !customer) { links.forEach(a => a.removeAttribute('href')); return; }
+  const ll = p => `${p.latitude.toFixed(6)},${p.longitude.toFixed(6)}`;
+  // os pontos do meio do caminho do Dijkstra viram paradas, para o Google Maps seguir a mesma rota (máximo de 8)
+  const via = state.path.slice(1, -1).map(id => byId.get(id)).filter(Boolean).slice(0, 8);
+  const google = new URL('https://www.google.com/maps/dir/');
+  google.searchParams.set('api', '1');
+  google.searchParams.set('origin', ll(store));
+  google.searchParams.set('destination', ll(customer));
+  if (via.length) google.searchParams.set('waypoints', via.map(ll).join('|'));
+  google.searchParams.set('travelmode', 'driving');
+  $('openGoogleMaps').href = google.toString();
+  $('openWaze').href = `https://waze.com/ul?ll=${ll(customer)}&navigate=yes`;
+  $('openGoogleMaps').title = via.length ? 'Segue os mesmos pontos da rota calculada' : 'Navegação da loja até o cliente';
+  $('openWaze').title = 'Navegação direto até o cliente';
 }
 
 function clearDestination() {
@@ -451,6 +495,7 @@ function play() {
   state.timer = setInterval(() => { if (state.step >= state.steps.length - 1) return stop(); go(state.step + 1); }, 1300);
 }
 function resetSimulation() {
+  $('app').classList.remove('studying');
   stop(); state.steps = []; state.step = -1;
   $('sim').hidden = true; $('simEmpty').hidden = false; $('resultCard').hidden = true;
   $('map').classList.remove('route-dim');
@@ -466,7 +511,31 @@ document.addEventListener('keydown', e => {
   if (e.key === 'ArrowRight') { stop(); go(state.step + 1); }
   if (e.key === 'ArrowLeft') { stop(); go(state.step - 1); }
 });
-$('toSim').onclick = () => { $('tab-sim').click(); stop(); go(0); $('tab-sim').focus(); };
+/* ================= Tela de estudo ================= */
+// Durante o estudo o mapa mostra o grafo inteiro, para dar para ver cada ponto testado; fora dele, só a rota.
+function fitCurrent() {
+  if (!state.graph) return;
+  const onPath = new Set(state.path);
+  const points = studying() ? state.graph.points : state.graph.points.filter(p => onPath.has(p.id));
+  fitPoints(points, studying() ? 14 : 15);
+}
+function afterPanelMove(fn) { setTimeout(fn, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 430); }
+function openStudy() {
+  if (!state.steps.length) return;
+  $('app').classList.add('studying');
+  $('tab-sim').click(); stop(); go(0);
+  if (narrow()) window.scrollTo(0, 0);
+  afterPanelMove(() => { fitCurrent(); $('play').focus({preventScroll: true}); });
+}
+function closeStudy() {
+  if (!studying()) return;
+  $('app').classList.remove('studying');
+  stop(); go(state.steps.length - 1);
+  afterPanelMove(() => { fitCurrent(); $('toSim').focus({preventScroll: true}); });
+}
+$('toSim').onclick = openStudy;
+$('closeStudy').onclick = closeStudy;
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && studying() && $('setup').hidden && $('splash').hidden) closeStudy(); });
 
 /* ================= Controles segmentados ================= */
 function segmented(root, attr, onPick) {
@@ -484,40 +553,162 @@ segmented($('radius'), 'aria-pressed', b => {
 });
 segmented($('tabs'), 'aria-selected', (b, i) => {
   ['view-sim', 'view-matrix', 'view-edges'].forEach((v, j) => { $(v).hidden = j !== i; });
-  $('right').classList.toggle('wide', i === 1);
 });
 
 /* ================= Tema claro / escuro ================= */
 const SUN = '<circle cx="8" cy="8" r="3.2" fill="currentColor"/><path d="M8 1.2v1.6M8 13.2v1.6M1.2 8h1.6M13.2 8h1.6M3.2 3.2l1.1 1.1M11.7 11.7l1.1 1.1M3.2 12.8l1.1-1.1M11.7 4.3l1.1-1.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>';
 const MOON = '<path d="M13.5 9.6A5.6 5.6 0 0 1 6.4 2.5a5.6 5.6 0 1 0 7.1 7.1z" fill="currentColor"/>';
 const isDark = () => document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+// O mesmo botão aparece no painel, na tela de início e no cadastro da loja.
+const themeButtons = [...document.querySelectorAll('[data-theme-toggle]')];
 function paintThemeBtn() {
   const dark = isDark();
-  $('themeIcon').innerHTML = dark ? SUN : MOON;
-  $('themeBtn').setAttribute('aria-label', dark ? 'Mudar para o tema claro' : 'Mudar para o tema escuro');
+  for (const b of themeButtons) {
+    b.querySelector('svg').innerHTML = dark ? SUN : MOON;
+    b.setAttribute('aria-label', dark ? 'Mudar para o tema claro' : 'Mudar para o tema escuro');
+  }
 }
-$('themeBtn').onclick = () => {
+themeButtons.forEach(b => b.addEventListener('click', () => {
   const next = isDark() ? 'light' : 'dark';
   document.documentElement.dataset.theme = next;
   try { localStorage.setItem('routify-theme', next); } catch (e) { /* sem armazenamento: vale só nesta visita */ }
   paintThemeBtn();
-};
+}));
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', paintThemeBtn);
 paintThemeBtn();
 
+/* ================= Telas por cima do mapa ================= */
+function closeOverlay(el, then) {
+  if (el.classList.contains('leaving')) return;
+  el.classList.add('leaving');
+  const ms = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 380;
+  setTimeout(() => { el.hidden = true; el.classList.remove('leaving'); then?.(); }, ms);
+}
+function openOverlay(el) { $('app').inert = true; el.hidden = false; }
+function releaseApp() { $('app').inert = false; }
+
 /* ================= Tela de início ================= */
 function startApp() {
-  const splash = $('splash');
-  if (splash.classList.contains('leaving')) return;
-  $('app').inert = false;
-  splash.classList.add('leaving');
-  const done = () => { splash.hidden = true; $('originAddress').focus({ preventScroll: true }); };
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) done();
-  else splash.addEventListener('transitionend', done, { once: true });
+  closeOverlay($('splash'), () => {
+    if (state.store) { releaseApp(); applyStore(state.store); }
+    else openSetup();
+  });
 }
 $('splashStart').onclick = startApp;
 $('splash').addEventListener('keydown', e => { if (e.key === 'Escape') startApp(); });
 $('splashStart').focus();
+
+/* ================= Cadastro da loja (salvo neste navegador) ================= */
+const STORE_KEY = 'routify-store';
+function readStore() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORE_KEY));
+    return s && Number.isFinite(s.latitude) && Number.isFinite(s.longitude) && s.address ? s : null;
+  } catch (e) { return null; }
+}
+function writeStore(s) {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(s)); } catch (e) { /* sem armazenamento: vale só nesta visita */ }
+}
+state.store = readStore();
+const setup = {place: null};
+
+const parsePrice = raw => { const t = String(raw).trim().replace(/\s|R\$/g, '').replace(',', '.'); return t === '' ? NaN : Number(t); };
+const money = v => v.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
+const priceOk = () => { const p = parsePrice($('setupPrice').value); return Number.isFinite(p) && p >= 0 && p <= 50; };
+function setupRadius() { return Number($('setupRadius').querySelector('[aria-pressed="true"]').dataset.km); }
+function validateSetup() {
+  const ok = priceOk();
+  $('setupPrice').parentElement.classList.toggle('invalid', !ok);
+  const help = $('setupPriceHelp'); help.classList.toggle('err', !ok);
+  help.textContent = ok ? 'Usado para calcular o valor de cada entrega.' : 'Digite um valor entre R$ 0,00 e R$ 50,00.';
+  $('setupSave').disabled = !ok || !setup.place;
+}
+function pickSetupPlace(place) {
+  setup.place = place;
+  $('setupResults').replaceChildren();
+  $('setupAddress').value = place.displayName;
+  const hint = $('setupAddressHint'); hint.className = 'hint ok'; hint.textContent = 'Endereço escolhido.';
+  validateSetup();
+}
+
+function openSetup() {
+  const s = state.store;
+  setup.place = s ? {displayName: s.address, latitude: s.latitude, longitude: s.longitude, name: s.name} : null;
+  $('setupName').value = s?.name || '';
+  $('setupAddress').value = s?.address || '';
+  $('setupResults').replaceChildren();
+  const hint = $('setupAddressHint');
+  hint.className = s ? 'hint ok' : 'hint'; hint.textContent = s ? 'Endereço escolhido.' : 'Digite o endereço e toque na lupa.';
+  $('setupPrice').value = (s?.pricePerKm ?? 2).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const km = String([5, 10, 15, 20].includes(s?.radiusKm) ? s.radiusKm : 10);
+  $('setupRadius').querySelector(`[data-km="${km}"]`).click();
+  $('setupCancel').hidden = !s;
+  $('setupTitle').textContent = s ? 'Editar a loja' : 'Onde fica a sua loja?';
+  $('setupSave').textContent = s ? 'Salvar e gerar a área' : 'Criar área de entrega';
+  validateSetup();
+  openOverlay($('setup'));
+  (s ? $('setupSave') : $('setupName')).focus();
+}
+
+async function searchSetupAddress() {
+  const query = $('setupAddress').value.trim();
+  if (!query) { $('setupAddress').focus(); return; }
+  searching('setupResults');
+  try {
+    const results = await fetch('/api/geocoding/search?scope=origin&query=' + encodeURIComponent(query)).then(check);
+    renderResults('setupResults', results, pickSetupPlace);
+  } catch (error) { $('setupResults').replaceChildren(); toast(error.message); }
+}
+$('setupSearch').onclick = searchSetupAddress;
+$('setupAddress').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); searchSetupAddress(); } });
+$('setupAddress').addEventListener('input', () => {
+  if (setup.place && $('setupAddress').value !== setup.place.displayName) {
+    setup.place = null; const hint = $('setupAddressHint'); hint.className = 'hint'; hint.textContent = 'Digite o endereço e toque na lupa.';
+    validateSetup();
+  }
+});
+$('setupExample').onclick = () => {
+  const store = state.fixed?.graph.points.find(p => p.type === 'STORE');
+  if (!store) { toast('A loja de exemplo ainda está carregando. Tente de novo.'); return; }
+  if (!$('setupName').value.trim()) $('setupName').value = 'Loja de exemplo';
+  pickSetupPlace({displayName: store.address, latitude: store.latitude, longitude: store.longitude, name: store.name});
+};
+$('setupPrice').addEventListener('input', validateSetup);
+segmented($('setupRadius'), 'aria-pressed');
+$('setupCancel').onclick = () => closeOverlay($('setup'), releaseApp);
+$('setup').addEventListener('keydown', e => { if (e.key === 'Escape' && state.store) closeOverlay($('setup'), releaseApp); });
+$('setupForm').addEventListener('submit', e => {
+  e.preventDefault();
+  if (!setup.place || !priceOk()) return;
+  state.store = {
+    name: $('setupName').value.trim(), address: setup.place.displayName,
+    latitude: setup.place.latitude, longitude: setup.place.longitude,
+    radiusKm: setupRadius(), pricePerKm: parsePrice($('setupPrice').value)
+  };
+  writeStore(state.store);
+  closeOverlay($('setup'), () => { releaseApp(); applyStore(state.store); });
+});
+$('editStoreButton').onclick = openSetup;
+
+function renderStoreCard() {
+  const s = state.store;
+  $('storeCard').hidden = !s; $('originPicker').hidden = !!s; $('originQuick').hidden = !!s;
+  if (!s) return;
+  $('storeName').textContent = s.name || 'Minha loja';
+  $('storeAddress').textContent = s.address;
+  $('storePrice').textContent = `${money(s.pricePerKm)} por km`;
+}
+// Usa a loja cadastrada: posiciona, escolhe o raio salvo e já gera a área de entrega.
+function applyStore(s) {
+  renderStoreCard();
+  selectOrigin({displayName: s.address, latitude: s.latitude, longitude: s.longitude, name: s.name || 'Loja'}, true, true);
+  const preset = $('radius').querySelector(`[data-km="${s.radiusKm}"]`);
+  if (preset) preset.click();
+  else { $('radius').querySelector('[data-km="custom"]').click(); $('customRadius').value = s.radiusKm; validateCustomRadius(); }
+  setHint('Loja cadastrada. Gerando a área de entrega…');
+  $('generateGraphButton').click();
+}
+renderStoreCard();
 
 window.addEventListener('resize', () => map.invalidateSize());
 load();

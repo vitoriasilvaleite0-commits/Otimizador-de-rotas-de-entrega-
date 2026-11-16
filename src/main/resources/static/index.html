@@ -4,10 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>Routify Acadêmico</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <script>try { const t = localStorage.getItem('routify-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600..700&display=swap">
   <link rel="stylesheet" href="/vendor/leaflet.css">
   <link rel="stylesheet" href="/css/app.css">
 </head>
@@ -32,13 +33,20 @@
   <aside class="panel left glass" aria-label="Trajeto">
     <div class="panel-scroll">
       <div class="brand">
-        <div class="app-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 22 22"><path d="M4.5 16.5 9 10l4 3 4.5-7.5" fill="none" stroke="#c8ff2e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="4.5" cy="16.5" r="2" fill="#fff"/><circle cx="17.5" cy="5.5" r="2" fill="#fff"/></svg></div>
-        <div class="brand-text"><h1>Routify</h1><p>Entregas pelo menor caminho</p></div>
-        <button type="button" class="theme-btn" id="themeBtn" aria-label="Mudar para o tema escuro"><svg viewBox="0 0 16 16" id="themeIcon" aria-hidden="true"></svg></button>
+        <div class="brand-text"><h1 aria-label="Routify"><span class="wordmark" aria-hidden="true">rout<span class="wm-i">ı<svg class="wm-pin" viewBox="0 0 24 27" aria-hidden="true"><path class="pin-body" d="M12 1.2C6.6 1.2 2.6 5.2 2.6 10.3c0 3.4 2 6.4 4.7 9.5L12 25.6l4.7-5.8c2.7-3.1 4.7-6.1 4.7-9.5C21.4 5.2 17.4 1.2 12 1.2Z"/><circle class="pin-hole" cx="12" cy="10.3" r="3.4"/></svg></span>fy</span></h1><p>Entregas pelo menor caminho</p></div>
+        <button type="button" class="theme-btn" data-theme-toggle aria-label="Mudar para o tema escuro"><svg viewBox="0 0 16 16" aria-hidden="true"></svg></button>
       </div>
 
       <section>
         <h2 class="group-title">Loja</h2>
+        <div class="group store-card" id="storeCard" hidden>
+          <div class="row">
+            <span class="badge-icon origin" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M2 5.5 6 2l4 3.5V10H7.5V7.5h-3V10H2z" fill="currentColor"/></svg></span>
+            <span class="grow"><b id="storeName"></b><small id="storeAddress"></small><small class="num" id="storePrice"></small></span>
+            <button type="button" class="btn btn-plain" id="editStoreButton">Editar</button>
+          </div>
+        </div>
+        <div id="originPicker">
         <div class="group trip">
           <form class="row" id="originSearchForm">
             <span class="badge-icon origin" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M2 5.5 6 2l4 3.5V10H7.5V7.5h-3V10H2z" fill="currentColor"/></svg></span>
@@ -47,8 +55,9 @@
           </form>
         </div>
         <div class="results" id="originResults" aria-live="polite"></div>
-        <p class="hint" id="mapHint">Comece buscando o endereço da loja ou use a loja de exemplo.</p>
-        <div class="quick">
+        </div>
+        <p class="hint" id="mapHint" hidden></p>
+        <div class="quick" id="originQuick">
           <button type="button" class="btn btn-plain" id="defaultOriginButton">Usar loja de exemplo</button>
         </div>
       </section>
@@ -68,7 +77,6 @@
           <span class="custom-input"><input type="number" id="customRadius" min="3" max="20" step="0.5" value="12" inputmode="decimal" aria-describedby="customRadiusHelp"><span>km</span></span>
         </label>
         <p class="hint" id="customRadiusHelp" hidden>Entre 3 e 20 km.</p>
-        <p class="hint">Referência: moto costuma atender até 10 km; carro, até 20 km.</p>
         <button type="button" class="btn btn-raised" id="generateGraphButton" disabled>Gerar área de entrega</button>
         <p class="hint" id="graphGenerationStatus" aria-live="polite">Escolha a loja para gerar a área de entrega.</p>
       </section>
@@ -92,10 +100,26 @@
 
       <section id="resultCard" hidden aria-live="polite">
         <div class="result-head">
-          <div class="result-km num" id="distanceBadge"></div>
+          <div class="result-km-wrap">
+            <div class="result-km num" id="distanceBadge"></div>
+            <span class="info" tabindex="0" role="button" aria-label="Detalhes do cálculo da rota" aria-describedby="routeMeta">?<span class="tip" role="tooltip" id="routeMeta"></span></span>
+          </div>
           <button type="button" class="btn btn-plain" id="toSim">Ver como foi calculado</button>
         </div>
-        <p class="result-meta" id="routeMeta"></p>
+        <div class="price-card">
+          <span><small>Valor da entrega</small><b class="num" id="routePrice"></b></span>
+          <span class="price-calc num" id="routePriceCalc"></span>
+        </div>
+        <div class="nav-links">
+          <a class="btn btn-raised" id="openGoogleMaps" target="_blank" rel="noopener noreferrer">
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5a4.6 4.6 0 0 0-4.6 4.6C3.4 9.6 8 14.5 8 14.5s4.6-4.9 4.6-8.4A4.6 4.6 0 0 0 8 1.5zm0 6.4a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6z" fill="currentColor"/></svg>
+            Google Maps
+          </a>
+          <a class="btn btn-raised" id="openWaze" target="_blank" rel="noopener noreferrer">
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 8.5 13.5 3l-4 11-1.8-4.2z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+            Waze
+          </a>
+        </div>
         <div class="group stops-group"><ol class="stops" id="stops"></ol></div>
       </section>
 
@@ -103,11 +127,28 @@
     </div>
   </aside>
 
-  <aside class="panel right glass" id="right" aria-label="Como a rota foi calculada">
+  <aside class="panel right glass" id="right" aria-labelledby="studyTitle">
     <div class="panel-scroll">
+      <header class="study-head">
+        <div>
+          <p class="study-eyebrow">Modo estudo · algoritmo de Dijkstra</p>
+          <h2 class="study-title" id="studyTitle">Como o Routify encontrou essa rota</h2>
+        </div>
+        <button type="button" class="btn btn-raised study-close" id="closeStudy">
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M11.5 7h-9M6 3 2 7l4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Voltar para a rota
+        </button>
+      </header>
+
+      <ol class="study-intro">
+        <li><span class="n" aria-hidden="true">1</span><p><b>Começa na loja.</b> A loja fica com 0 km, e os outros pontos com ∞, porque ainda não se sabe como chegar até eles.</p></li>
+        <li><span class="n" aria-hidden="true">2</span><p><b>Visita o ponto mais perto.</b> A cada passo, pega o ponto ainda aberto mais próximo da loja e testa as ruas que saem dele. Achou caminho mais curto? A distância é atualizada.</p></li>
+        <li><span class="n" aria-hidden="true">3</span><p><b>Para no cliente.</b> Quando o cliente é visitado, a distância dele não muda mais: esse é o menor caminho.</p></li>
+      </ol>
+
       <div class="segmented" id="tabs" role="tablist" aria-label="Visualização">
         <span class="thumb" aria-hidden="true"></span>
-        <button type="button" role="tab" aria-selected="true" aria-controls="view-sim" id="tab-sim">Dijkstra</button>
+        <button type="button" role="tab" aria-selected="true" aria-controls="view-sim" id="tab-sim">Passo a passo</button>
         <button type="button" role="tab" aria-selected="false" aria-controls="view-matrix" id="tab-matrix">Matriz</button>
         <button type="button" role="tab" aria-selected="false" aria-controls="view-edges" id="tab-edges">Ligações</button>
       </div>
@@ -132,7 +173,7 @@
             <span class="vbadge current" id="curBadge"></span>
             <div><h3 id="curTitle"></h3><p id="curText"></p></div>
           </div>
-          <section>
+          <section class="relax-section">
             <h2 class="group-title" id="relaxTitle"></h2>
             <div class="group relax" id="relax"></div>
           </section>
@@ -192,10 +233,10 @@
 
   <div class="splash-body">
     <div class="splash-mark">
-      <div class="app-icon" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 22 22"><path d="M4.5 16.5 9 10l4 3 4.5-7.5" fill="none" stroke="#c8ff2e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="4.5" cy="16.5" r="2" fill="#fff"/><circle cx="17.5" cy="5.5" r="2" fill="#fff"/></svg></div>
       <span>Projeto acadêmico</span>
+      <button type="button" class="theme-btn" data-theme-toggle aria-label="Mudar para o tema escuro"><svg viewBox="0 0 16 16" aria-hidden="true"></svg></button>
     </div>
-    <h1 id="splashTitle">Routify</h1>
+    <h1 id="splashTitle" aria-label="Routify"><span class="wordmark" aria-hidden="true">rout<span class="wm-i">ı<svg class="wm-pin" viewBox="0 0 24 27" aria-hidden="true"><path class="pin-body" d="M12 1.2C6.6 1.2 2.6 5.2 2.6 10.3c0 3.4 2 6.4 4.7 9.5L12 25.6l4.7-5.8c2.7-3.1 4.7-6.1 4.7-9.5C21.4 5.2 17.4 1.2 12 1.2Z"/><circle class="pin-hole" cx="12" cy="10.3" r="3.4"/></svg></span>fy</span></h1>
     <p class="splash-claim">Menos voltas, <mark>mais entregas.</mark></p>
     <p class="splash-text">Cada desvio custa tempo. O Routify encontra o menor caminho entre a loja e o cliente com o algoritmo de Dijkstra e mostra cada passo da decisão.</p>
     <button type="button" class="btn btn-primary splash-start" id="splashStart">
@@ -211,6 +252,56 @@
       </ul>
     </div>
   </div>
+</div>
+
+<div class="splash setup" id="setup" role="dialog" aria-modal="true" aria-labelledby="setupTitle" hidden>
+  <form class="splash-body setup-body" id="setupForm" novalidate>
+    <div class="setup-top">
+      <p class="setup-step">Cadastro da loja</p>
+      <button type="button" class="theme-btn" data-theme-toggle aria-label="Mudar para o tema escuro"><svg viewBox="0 0 16 16" aria-hidden="true"></svg></button>
+    </div>
+    <h2 id="setupTitle">Onde fica a sua loja?</h2>
+    <p class="setup-lead">Com isso o Routify monta a sua área de entrega. Fica salvo neste navegador e dá para mudar depois.</p>
+
+    <label class="field">
+      <span class="field-label">Nome da loja <em>opcional</em></span>
+      <input class="field-input" id="setupName" maxlength="60" placeholder="Ex.: Pizzaria do Bairro" autocomplete="organization">
+    </label>
+
+    <div class="field">
+      <label class="field-label" for="setupAddress">Endereço</label>
+      <div class="field-search">
+        <input class="field-input" id="setupAddress" maxlength="180" placeholder="Rua, número e bairro" autocomplete="off" aria-describedby="setupAddressHint">
+        <button type="button" class="icon-btn" id="setupSearch" aria-label="Buscar endereço da loja"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m10.5 10.5 3 3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
+      </div>
+      <div class="results" id="setupResults" aria-live="polite"></div>
+      <p class="hint" id="setupAddressHint">Digite o endereço e toque na lupa.</p>
+      <div class="quick"><button type="button" class="btn btn-plain" id="setupExample">Usar loja de exemplo</button></div>
+    </div>
+
+    <div class="field">
+      <span class="field-label" id="setupRadiusLabel">Raio de entrega</span>
+      <div class="segmented" id="setupRadius" role="group" aria-labelledby="setupRadiusLabel">
+        <span class="thumb" aria-hidden="true"></span>
+        <button type="button" data-km="5" aria-pressed="false">5 km</button>
+        <button type="button" data-km="10" aria-pressed="true">10 km</button>
+        <button type="button" data-km="15" aria-pressed="false">15 km</button>
+        <button type="button" data-km="20" aria-pressed="false">20 km</button>
+      </div>
+      <p class="hint">Moto costuma atender até 10 km; carro, até 20 km.</p>
+    </div>
+
+    <div class="field field-inline">
+      <label class="field-label" for="setupPrice">Valor cobrado por km</label>
+      <span class="custom-input money"><span>R$</span><input type="text" id="setupPrice" inputmode="decimal" value="2,00" maxlength="7" aria-describedby="setupPriceHelp"><span>/km</span></span>
+    </div>
+    <p class="hint" id="setupPriceHelp">Usado para calcular o valor de cada entrega.</p>
+
+    <div class="setup-actions">
+      <button type="button" class="btn btn-plain" id="setupCancel" hidden>Cancelar</button>
+      <button type="submit" class="btn btn-primary" id="setupSave" disabled>Criar área de entrega</button>
+    </div>
+  </form>
 </div>
 
 <script src="/vendor/leaflet.js"></script>

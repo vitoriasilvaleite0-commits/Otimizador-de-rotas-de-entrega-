@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Ícone oficial do Routify: bloco limão com o "i" do nome (pino de mapa + haste) -->
+  <rect width="64" height="64" rx="16" fill="#c8ff2e"/>
+  <g transform="translate(24 11) scale(0.667)" fill="#0b1530">
+    <path d="M12 1.2C6.6 1.2 2.6 5.2 2.6 10.3c0 3.4 2 6.4 4.7 9.5L12 25.6l4.7-5.8c2.7-3.1 4.7-6.1 4.7-9.5C21.4 5.2 17.4 1.2 12 1.2Z"/>
+  </g>
+  <circle cx="32" cy="17.9" r="2.6" fill="#c8ff2e"/>
+  <rect x="27.75" y="34" width="8.5" height="19" rx="4.25" fill="#0b1530"/>
+</svg>
