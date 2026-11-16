@@ -171,7 +171,6 @@ function applyGraph(data, dynamic) {
   indexGraph(data.graph);
   drawServiceArea(data.serviceArea); drawGraph(data.graph); fitPoints(data.graph.points, 13);
   renderMatrix(); renderEdges();
-  $('demoButton').disabled = dynamic && !fixedFallback;
   resetSimulation(); clearDestination();
 }
 
@@ -200,50 +199,85 @@ $('defaultOriginButton').addEventListener('click', () => {
   selectOrigin({displayName: store.address, latitude: store.latitude, longitude: store.longitude, name: store.name}, true, true);
 });
 function selectOrigin(result, pan, isStore = false) {
+  invalidateArea('A loja mudou. Gere a área de entrega de novo.');
   state.selectedOrigin = {name: result.name || 'Origem escolhida', address: result.displayName, latitude: result.latitude, longitude: result.longitude};
-  state.originIsStore = isStore; state.editMode = 'origin';
+  state.editMode = 'origin';
   $('originAddress').value = result.displayName;
   if (state.originMarker) map.removeLayer(state.originMarker);
-  state.originMarker = L.marker([result.latitude, result.longitude], {icon: pinIcon('origin', isStore ? 'Loja' : 'Partida', true), zIndexOffset: 900}).addTo(map);
-  $('generateGraphButton').disabled = false;
+  state.originMarker = L.marker([result.latitude, result.longitude], {icon: pinIcon('origin', 'Loja', true), zIndexOffset: 900}).addTo(map);
+  validateCustomRadius();
   const status = $('graphGenerationStatus'); status.className = 'hint';
-  status.textContent = 'Escolha o raio e gere o grafo para ver os pontos e as ligações da região.';
-  setHint('Clique no mapa se quiser ajustar o ponto exato da partida.');
+  status.textContent = 'Escolha o raio e gere a área de entrega para liberar o cliente.';
+  setHint('Clique no mapa se quiser ajustar o ponto exato da loja.');
   if (pan) map.setView([result.latitude, result.longitude], Math.max(map.getZoom(), 14));
 }
 function setHint(text) { $('mapHint').textContent = text; }
 
-function selectedRadius() {
-  const km = $('radius').querySelector('[aria-pressed="true"]').dataset.km;
-  if (km !== 'custom') return Number(km);
-  const value = Number(String($('customRadius').value).replace(',', '.'));
-  const ok = Number.isFinite(value) && value >= 3 && value <= 20;
-  $('customRadius').parentElement.classList.toggle('invalid', !ok);
-  return ok ? value : null;
+/* ===== Etapas: o cliente só libera depois que a área de entrega existe ===== */
+function setClientLocked(locked) {
+  $('clientSection').classList.toggle('step-locked', locked);
+  $('address').disabled = locked; $('searchButton').disabled = locked; $('demoButton').disabled = locked;
+  $('address').placeholder = locked ? 'Disponível depois de gerar a área' : 'Buscar endereço do cliente';
 }
-$('customRadius').addEventListener('input', () => $('customRadius').parentElement.classList.remove('invalid'));
+// Loja ou raio mudaram depois de gerar: a área antiga não vale mais, então apaga grafo, cliente e rota.
+function invalidateArea(reason) {
+  if (!state.areaReady) return;
+  state.areaReady = false; state.graph = null; state.graphId = null; state.ids = []; state.matrix = [];
+  state.path = []; state.routeKeys = new Set(); state.segments = [];
+  clearGraphLayers(); drawServiceArea(null);
+  resetSimulation(); clearDestination(); setClientLocked(true);
+  $('graphInfo').textContent = '';
+  $('matrixEmpty').hidden = false; $('matrixWrap').hidden = true;
+  $('edgesEmpty').hidden = false; $('edgeList').hidden = true;
+  const status = $('graphGenerationStatus'); status.className = 'hint'; status.textContent = reason;
+}
+
+const RADIUS_MIN = 3, RADIUS_MAX = 20;
+const customSelected = () => $('radius').querySelector('[aria-pressed="true"]').dataset.km === 'custom';
+// Valida enquanto digita: mostra o problema embaixo do campo e trava o botão, em vez de avisar só no clique.
+function validateCustomRadius() {
+  const raw = String($('customRadius').value).trim(), value = Number(raw.replace(',', '.'));
+  const ok = !customSelected() || (raw !== '' && Number.isFinite(value) && value >= RADIUS_MIN && value <= RADIUS_MAX);
+  $('customRadius').parentElement.classList.toggle('invalid', !ok);
+  const help = $('customRadiusHelp');
+  help.classList.toggle('err', !ok);
+  help.textContent = ok ? `Entre ${RADIUS_MIN} e ${RADIUS_MAX} km.`
+    : raw === '' || !Number.isFinite(value) ? `Digite um número entre ${RADIUS_MIN} e ${RADIUS_MAX}.`
+    : value > RADIUS_MAX ? `O raio máximo é ${RADIUS_MAX} km.` : `O raio mínimo é ${RADIUS_MIN} km.`;
+  $('generateGraphButton').disabled = !state.selectedOrigin || !ok;
+  return ok;
+}
+function selectedRadius() {
+  if (!customSelected()) return Number($('radius').querySelector('[aria-pressed="true"]').dataset.km);
+  return validateCustomRadius() ? Number(String($('customRadius').value).replace(',', '.')) : null;
+}
+$('customRadius').addEventListener('input', () => {
+  if (validateCustomRadius()) invalidateArea('O raio mudou. Gere a área de entrega de novo.');
+});
 $('generateGraphButton').addEventListener('click', async () => {
   if (!state.selectedOrigin) return;
   const radiusKm = selectedRadius();
   if (radiusKm === null) { toast('Digite um raio entre 3 e 20 km.'); $('customRadius').focus(); return; }
   const button = $('generateGraphButton'), status = $('graphGenerationStatus');
-  button.disabled = true; button.innerHTML = '<span class="spinner" aria-hidden="true"></span>Gerando o grafo…';
+  button.disabled = true; button.innerHTML = '<span class="spinner" aria-hidden="true"></span>Gerando a área…';
   status.className = 'hint'; status.textContent = 'Escolhendo pontos nas ruas da região e calculando as distâncias…';
   try {
     const data = await fetch('/api/graphs/generate', {method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({...state.selectedOrigin, radiusKm, forceRefresh: false})}).then(check);
     if (state.originMarker) { map.removeLayer(state.originMarker); state.originMarker = null; }
     applyGraph(data, true); state.editMode = null;
+    state.areaReady = true; setClientLocked(false);
     const intermediates = data.graph.points.filter(p => p.type === 'INTERMEDIATE').length;
     const source = data.graphSource === 'OSRM_RADIAL_DYNAMIC' ? 'pontos novos nas ruas e pesos do OSRM'
       : data.graphSource?.startsWith('LOCAL_') ? 'pontos locais verificados e pesos aproximados'
       : data.graphSource === 'GRAPH_JSON_FALLBACK' ? 'o grafo de demonstração, porque o serviço de mapas não respondeu'
       : data.fallbackUsed ? 'ruas do OpenStreetMap e pesos aproximados' : 'ruas do OpenStreetMap e pesos do OSRM';
-    status.className = 'hint ok'; status.textContent = `Grafo pronto: ${intermediates} pontos, ${data.graph.edges.length} ligações, com ${source}.`;
-    setHint('Agora busque o endereço do cliente dentro da área.');
+    status.className = 'hint ok'; status.textContent = `Área pronta: ${intermediates} pontos, ${data.graph.edges.length} ligações, com ${source}.`;
+    setHint('Loja definida. Agora escolha o cliente dentro da área.');
+    $('address').focus();
   } catch (error) {
-    status.className = 'hint err'; status.textContent = 'O grafo não foi gerado; o anterior continua valendo.'; toast(error.message);
-  } finally { button.disabled = false; button.textContent = 'Gerar grafo desta região'; }
+    status.className = 'hint err'; status.textContent = 'A área não foi gerada. Tente de novo ou mude o raio.'; toast(error.message);
+  } finally { button.textContent = 'Gerar área de entrega'; validateCustomRadius(); }
 });
 
 $('searchForm').addEventListener('submit', async event => {
@@ -254,10 +288,15 @@ $('searchForm').addEventListener('submit', async event => {
     renderResults('searchResults', results, selectCustomer);
   } catch (error) { $('searchResults').replaceChildren(); toast(error.message); }
 });
+// Cliente de exemplo dentro da área gerada: o ponto mais distante da loja, para a rota passar por vários pontos.
 $('demoButton').addEventListener('click', () => {
-  if (state.graphId) { toast('O cliente de exemplo pertence ao grafo de demonstração. Busque um cliente dentro da região gerada.'); return; }
-  const demo = state.fixed.demoCustomer;
-  selectCustomer({displayName: demo.address, latitude: demo.latitude, longitude: demo.longitude, fallback: true});
+  if (!state.areaReady || !state.graph) return;
+  const store = state.graph.points.find(p => p.type === 'STORE');
+  const far = state.graph.points.filter(p => p.type === 'INTERMEDIATE')
+    .sort((a, b) => map.distance([b.latitude, b.longitude], [store.latitude, store.longitude]) - map.distance([a.latitude, a.longitude], [store.latitude, store.longitude]))[0];
+  if (!far) return;
+  // o "address" dos pontos gerados é técnico ("Ponto viário gerado pelo OSRM…"); o nome da rua é o que faz sentido mostrar
+  selectCustomer({displayName: far.name || far.address, latitude: far.latitude, longitude: far.longitude, fallback: true});
 });
 function selectCustomer(result) {
   state.selected = {name: result.fallback ? 'Cliente de demonstração' : 'Cliente', address: result.displayName, latitude: result.latitude, longitude: result.longitude};
@@ -284,7 +323,7 @@ map.on('click', event => {
 
 $('confirmButton').addEventListener('click', async () => {
   if (!state.selected) return;
-  if (!state.graphId && state.selectedOrigin && !state.originIsStore) { toast('Gere o grafo da região da partida antes de calcular a rota.'); return; }
+  if (!state.areaReady) { toast('Gere a área de entrega antes de calcular a rota.'); return; }
   const button = $('confirmButton'); button.disabled = true; button.innerHTML = '<span class="spinner" aria-hidden="true"></span>Calculando…';
   try {
     const data = await fetch('/api/routes/optimize', {method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -439,6 +478,8 @@ function segmented(root, attr, onPick) {
 segmented($('radius'), 'aria-pressed', b => {
   const custom = b.dataset.km === 'custom';
   $('customRadiusRow').hidden = !custom; $('customRadiusHelp').hidden = !custom;
+  validateCustomRadius();
+  invalidateArea('O raio mudou. Gere a área de entrega de novo.');
   if (custom) { $('customRadius').focus(); $('customRadius').select(); }
 });
 segmented($('tabs'), 'aria-selected', (b, i) => {

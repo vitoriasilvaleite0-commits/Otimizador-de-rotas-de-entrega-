@@ -38,31 +38,23 @@
       </div>
 
       <section>
-        <h2 class="group-title">Trajeto</h2>
+        <h2 class="group-title">Loja</h2>
         <div class="group trip">
-          <div class="trip-line" aria-hidden="true"></div>
           <form class="row" id="originSearchForm">
             <span class="badge-icon origin" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M2 5.5 6 2l4 3.5V10H7.5V7.5h-3V10H2z" fill="currentColor"/></svg></span>
             <label class="grow"><small>Partida · loja</small><input class="addr" id="originAddress" maxlength="180" placeholder="Buscar endereço de partida" autocomplete="off" required></label>
             <button type="submit" class="icon-btn" aria-label="Buscar endereço de partida"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m10.5 10.5 3 3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
           </form>
-          <form class="row" id="searchForm">
-            <span class="badge-icon client" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M6 1.2a3.3 3.3 0 0 0-3.3 3.3C2.7 7 6 10.8 6 10.8S9.3 7 9.3 4.5A3.3 3.3 0 0 0 6 1.2zm0 4.6a1.3 1.3 0 1 1 0-2.6 1.3 1.3 0 0 1 0 2.6z" fill="currentColor"/></svg></span>
-            <label class="grow"><small>Entrega · cliente</small><input class="addr" id="address" maxlength="180" placeholder="Buscar endereço do cliente" autocomplete="off" required></label>
-            <button type="submit" class="icon-btn" aria-label="Buscar endereço do cliente"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m10.5 10.5 3 3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
-          </form>
         </div>
         <div class="results" id="originResults" aria-live="polite"></div>
-        <div class="results" id="searchResults" aria-live="polite"></div>
-        <p class="hint" id="mapHint">Comece buscando o endereço de partida ou use a loja de exemplo.</p>
+        <p class="hint" id="mapHint">Comece buscando o endereço da loja ou use a loja de exemplo.</p>
         <div class="quick">
           <button type="button" class="btn btn-plain" id="defaultOriginButton">Usar loja de exemplo</button>
-          <button type="button" class="btn btn-plain" id="demoButton">Usar cliente de exemplo</button>
         </div>
       </section>
 
       <section>
-        <h2 class="group-title">Área atendida <span class="aside num" id="graphInfo"></span></h2>
+        <h2 class="group-title">Área de entrega <span class="aside num" id="graphInfo"></span></h2>
         <div class="segmented" id="radius" role="group" aria-label="Raio de atendimento">
           <span class="thumb" aria-hidden="true"></span>
           <button type="button" data-km="5" aria-pressed="false">5 km</button>
@@ -76,8 +68,24 @@
           <span class="custom-input"><input type="number" id="customRadius" min="3" max="20" step="0.5" value="12" inputmode="decimal" aria-describedby="customRadiusHelp"><span>km</span></span>
         </label>
         <p class="hint" id="customRadiusHelp" hidden>Entre 3 e 20 km.</p>
-        <button type="button" class="btn btn-raised" id="generateGraphButton" disabled>Gerar grafo desta região</button>
-        <p class="hint" id="graphGenerationStatus" aria-live="polite">Escolha a partida para gerar o grafo da região.</p>
+        <p class="hint">Referência: moto costuma atender até 10 km; carro, até 20 km.</p>
+        <button type="button" class="btn btn-raised" id="generateGraphButton" disabled>Gerar área de entrega</button>
+        <p class="hint" id="graphGenerationStatus" aria-live="polite">Escolha a loja para gerar a área de entrega.</p>
+      </section>
+
+      <section class="step-locked" id="clientSection" aria-describedby="clientLockNote">
+        <h2 class="group-title">Cliente <span class="aside lock-note" id="clientLockNote"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 5V3.8a2.5 2.5 0 0 1 5 0V5M2.8 5h6.4v5H2.8z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Gere a área de entrega primeiro</span></h2>
+        <div class="group trip">
+          <form class="row" id="searchForm">
+            <span class="badge-icon client" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M6 1.2a3.3 3.3 0 0 0-3.3 3.3C2.7 7 6 10.8 6 10.8S9.3 7 9.3 4.5A3.3 3.3 0 0 0 6 1.2zm0 4.6a1.3 1.3 0 1 1 0-2.6 1.3 1.3 0 0 1 0 2.6z" fill="currentColor"/></svg></span>
+            <label class="grow"><small>Entrega · cliente</small><input class="addr" id="address" maxlength="180" placeholder="Disponível depois de gerar a área" autocomplete="off" required disabled></label>
+            <button type="submit" class="icon-btn" id="searchButton" aria-label="Buscar endereço do cliente" disabled><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m10.5 10.5 3 3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
+          </form>
+        </div>
+        <div class="results" id="searchResults" aria-live="polite"></div>
+        <div class="quick">
+          <button type="button" class="btn btn-plain" id="demoButton" disabled>Usar cliente de exemplo</button>
+        </div>
       </section>
 
       <button type="button" class="btn btn-primary" id="confirmButton" disabled>Calcular rota</button>

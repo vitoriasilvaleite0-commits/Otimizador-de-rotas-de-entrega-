@@ -45,8 +45,8 @@
   --tile-filter: none;
   --graph-edge: rgba(31, 34, 38, 0.45);
   --route-casing: #1f2226;
-  --area-fill: rgba(31, 34, 38, 0.05);
-  --area-stroke: rgba(31, 34, 38, 0.5);
+  --area-fill: rgba(200, 255, 46, 0.14);
+  --area-stroke: rgba(31, 34, 38, 0.8);
 
   --left-w: 360px;
   --right-w: 404px;
@@ -67,7 +67,7 @@
     --origin: #edf1f7; --visited: #edf1f7; --visited-ring: #0b1530;
     --map-bg: #0a1329; --map-halo: #0a1329;
     --tile-opacity: 0.8; --tile-filter: invert(1) hue-rotate(180deg) brightness(0.95);
-    --graph-edge: rgba(237, 241, 247, 0.4); --route-casing: #050b1c; --area-fill: rgba(200, 255, 46, 0.05); --area-stroke: rgba(200, 255, 46, 0.55);
+    --graph-edge: rgba(237, 241, 247, 0.4); --route-casing: #050b1c; --area-fill: rgba(200, 255, 46, 0.09); --area-stroke: rgba(200, 255, 46, 0.9);
     color-scheme: dark;
   }
 }
@@ -81,7 +81,7 @@
   --origin: #edf1f7; --visited: #edf1f7; --visited-ring: #0b1530;
   --map-bg: #0a1329; --map-halo: #0a1329;
   --tile-opacity: 0.8; --tile-filter: invert(1) hue-rotate(180deg) brightness(0.95);
-  --graph-edge: rgba(237, 241, 247, 0.4); --route-casing: #050b1c; --area-fill: rgba(200, 255, 46, 0.05); --area-stroke: rgba(200, 255, 46, 0.55);
+  --graph-edge: rgba(237, 241, 247, 0.4); --route-casing: #050b1c; --area-fill: rgba(200, 255, 46, 0.09); --area-stroke: rgba(200, 255, 46, 0.9);
   color-scheme: dark;
 }
 
@@ -116,7 +116,7 @@ button { cursor: pointer; border: 0; background: none; padding: 0; }
 .leaflet-popup-content { margin: 12px 14px; font-size: 13px; line-height: 1.4; }
 .leaflet-container a.leaflet-popup-close-button { color: var(--label-2); }
 
-path.area { fill: var(--area-fill); stroke: var(--area-stroke); stroke-width: 1.5; stroke-dasharray: 5 5; }
+path.area { fill: var(--area-fill); stroke: var(--area-stroke); stroke-width: 2.5; stroke-dasharray: 10 6; stroke-linecap: round; }
 path.edge { stroke: var(--graph-edge); stroke-width: 1.4; stroke-dasharray: 3 4; fill: none; transition: stroke 200ms, stroke-width 200ms, opacity 200ms; }
 path.edge.tree { stroke: var(--blue-line); stroke-dasharray: none; stroke-width: 1.8; opacity: .7; }
 path.edge.active { stroke: var(--blue); stroke-dasharray: none; stroke-width: 3.2; opacity: 1; }
@@ -214,6 +214,12 @@ section { display: flex; flex-direction: column; gap: 10px; }
 .hint.ok::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 2px; background: var(--lime); box-shadow: 0 0 0 1px var(--route-casing); margin-right: 7px; vertical-align: 1px; }
 .hint.err { color: var(--danger); }
 .quick { display: flex; justify-content: space-between; gap: 8px; margin-top: -4px; }
+.step-locked .group, .step-locked .quick { opacity: .45; }
+.step-locked .group { box-shadow: var(--inset); }
+.lock-note { display: inline-flex; align-items: center; gap: 5px; color: var(--label-2); }
+.lock-note svg { width: 12px; height: 12px; }
+#clientSection:not(.step-locked) .lock-note { display: none; }
+.addr:disabled { cursor: not-allowed; }
 
 .segmented { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--cell); box-shadow: var(--inset); border-radius: 12px; padding: 4px; }
 .segmented button { position: relative; z-index: 1; padding: 6px 8px; font-size: 13px; font-weight: 500; border-radius: 9px; color: var(--label); transition: color 150ms; }
