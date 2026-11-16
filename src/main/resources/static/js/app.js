@@ -1,249 +1,468 @@
 'use strict';
 
+/* ================= Estado e utilitários ================= */
 const state = {
-  fixed: null, current: null, graphId: null, selectedOrigin: null, selected: null,
-  editMode: null, originMarker: null, customerMarker: null, serviceAreaLayer: null,
-  markers: new Map(), edgeLayers: [], routeLayers: [], steps: [], step: -1, timer: null
+  fixed: null, graph: null, ids: [], matrix: [], graphId: null, labels: new Map(), names: new Map(), types: new Map(),
+  selectedOrigin: null, selected: null, editMode: null, originMarker: null, customerMarker: null,
+  serviceAreaLayer: null, markers: new Map(), edgeLayers: [], routeLayers: [],
+  steps: [], step: -1, timer: null, path: [], routeKeys: new Set(), segments: []
 };
 const $ = id => document.getElementById(id);
-const fmt = number => Number.isFinite(number)
-  ? number.toLocaleString('pt-BR', {maximumFractionDigits: 2}) : '∞';
-const toast = message => {
-  const element = $('toast'); element.textContent = message; element.style.display = 'block';
-  setTimeout(() => element.style.display = 'none', 4500);
-};
-const map = L.map('map', {zoomControl: true}).setView([-23.615, -46.65], 13);
+const num = v => v == null ? Infinity : Number(v);
+const fmt = v => { const n = num(v); return Number.isFinite(n) ? n.toLocaleString('pt-BR', {minimumFractionDigits: 1, maximumFractionDigits: 2}) : '∞'; };
+const esc = (value = '') => String(value).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+const label = id => state.labels.get(id) || id;
+const nameOf = id => state.names.get(id) || id;
+let toastTimer = null;
+function toast(message) {
+  const el = $('toast'); el.textContent = message; el.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 5000);
+}
+async function check(response) {
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.message || 'Não foi possível concluir a operação.');
+  return body;
+}
+
+const ICON_HOME = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 5.5 6 2l4 3.5V10H7.5V7.5h-3V10H2z" fill="currentColor"/></svg>';
+const ICON_PIN = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.2a3.3 3.3 0 0 0-3.3 3.3C2.7 7 6 10.8 6 10.8S9.3 7 9.3 4.5A3.3 3.3 0 0 0 6 1.2zm0 4.6a1.3 1.3 0 1 1 0-2.6 1.3 1.3 0 0 1 0 2.6z" fill="currentColor"/></svg>';
+
+/* ================= Mapa ================= */
+const map = L.map('map', {zoomControl: false, zoomSnap: 0.25}).setView([-23.6, -46.655], 12);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19,
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 }).addTo(map);
 map.createPane('serviceArea');
 map.getPane('serviceArea').style.zIndex = '350';
 map.getPane('serviceArea').style.pointerEvents = 'none';
-const colors = {STORE: '#a3d52a', INTERMEDIATE: '#12634f', CUSTOMER: '#f17842'};
+$('zoomIn').onclick = () => map.zoomIn();
+$('zoomOut').onclick = () => map.zoomOut();
 
-function icon(type) {
-  const size = type === 'STORE' ? 20 : 15;
-  return L.divIcon({className: '', html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${colors[type]};border:3px solid white;box-shadow:0 2px 7px #243b35aa"></div>`, iconSize: [20, 20], iconAnchor: [10, 10]});
+const narrow = () => matchMedia('(max-width: 960px)').matches;
+function fitPadding() {
+  if (narrow()) return {padding: [28, 28]};
+  return {paddingTopLeft: [$('right').previousElementSibling.offsetWidth + 56, 48], paddingBottomRight: [$('right').offsetWidth + 56, 72]};
+}
+function fitPoints(points, maxZoom = 14) {
+  map.invalidateSize();
+  if (points.length) map.fitBounds(points.map(p => [p.latitude, p.longitude]), {...fitPadding(), maxZoom});
 }
 
-function drawGraph(graph, route = [], routeGeometry = []) {
-  [...state.markers.values()].forEach(marker => map.removeLayer(marker));
-  state.edgeLayers.forEach(layer => map.removeLayer(layer));
-  state.routeLayers.forEach(layer => map.removeLayer(layer));
-  state.markers.clear(); state.edgeLayers = []; state.routeLayers = [];
-  const points = new Map(graph.points.map(point => [point.id, point]));
-  graph.edges.forEach(edge => {
-    const from = points.get(edge.from), to = points.get(edge.to); if (!from || !to) return;
-    const layer = L.polyline([[from.latitude, from.longitude], [to.latitude, to.longitude]], {color: '#799087', weight: 1.5, opacity: .42, dashArray: '5 5'}).addTo(map);
-    layer._edge = `${edge.from}>${edge.to}`; state.edgeLayers.push(layer);
+function pinIcon(kind, text, editing = false) {
+  return L.divIcon({
+    className: '', iconSize: [26, 26], iconAnchor: [13, 13],
+    html: `<div class="pin ${kind}${editing ? ' editing' : ''}"><span class="disc">${kind === 'origin' ? ICON_HOME : ICON_PIN}</span><span class="lbl">${esc(text)}</span></div>`
   });
-  graph.points.forEach(point => {
-    const marker = L.marker([point.latitude, point.longitude], {icon: icon(point.type), keyboard: true, title: point.name})
-      .bindPopup(`<b>${escapeHtml(point.name)}</b><br>${escapeHtml(point.address)}`).addTo(map);
-    state.markers.set(point.id, marker);
-  });
-  if (routeGeometry?.length >= 2) {
-    state.routeLayers.push(L.polyline(routeGeometry, {color: '#f17842', weight: 6, opacity: .9}).addTo(map));
-    return;
+}
+function vertexIcon(id) {
+  return L.divIcon({className: '', iconSize: [14, 14], iconAnchor: [7, 7],
+    html: `<div class="vtx dim"><span class="halo"></span><span class="dot"></span><span class="lbl">${esc(label(id))}</span></div>`});
+}
+
+function indexGraph(graph) {
+  state.labels.clear(); state.names.clear(); state.types.clear();
+  let n = 0;
+  for (const p of graph.points) {
+    state.names.set(p.id, p.name); state.types.set(p.id, p.type);
+    if (p.type === 'STORE') state.labels.set(p.id, 'O');
+    else if (p.type === 'CUSTOMER') state.labels.set(p.id, 'C');
+    else { n += 1; const m = /^P0*(\d+)$/.exec(p.id); state.labels.set(p.id, m ? 'P' + m[1] : 'P' + n); }
   }
-  route.forEach(edge => {
-    const from = points.get(edge.from), to = points.get(edge.to); if (!from || !to) return;
-    state.routeLayers.push(L.polyline([[from.latitude, from.longitude], [to.latitude, to.longitude]], {color: '#f17842', weight: 4, opacity: .65, dashArray: '10 10'})
-      .bindTooltip('Ligação esquemática: geometria viária indisponível').addTo(map));
-  });
 }
 
-function escapeHtml(value = '') { const node = document.createElement('div'); node.textContent = value; return node.innerHTML; }
+function clearGraphLayers() {
+  [...state.markers.values()].forEach(m => map.removeLayer(m));
+  state.edgeLayers.forEach(l => map.removeLayer(l));
+  state.routeLayers.forEach(l => map.removeLayer(l));
+  state.markers.clear(); state.edgeLayers = []; state.routeLayers = [];
+}
+
+function drawGraph(graph, segments = [], routeGeometry = []) {
+  clearGraphLayers();
+  const points = new Map(graph.points.map(p => [p.id, p]));
+  const drawn = new Set();
+  for (const e of graph.edges) {
+    const a = points.get(e.from), b = points.get(e.to); if (!a || !b) continue;
+    if (drawn.has(e.to + '>' + e.from)) continue; drawn.add(e.from + '>' + e.to);
+    const layer = L.polyline([[a.latitude, a.longitude], [b.latitude, b.longitude]], {className: 'edge', interactive: false}).addTo(map);
+    layer._k = e.from + '>' + e.to; layer._r = e.to + '>' + e.from; state.edgeLayers.push(layer);
+  }
+  if (routeGeometry?.length >= 2) {
+    state.routeLayers.push(L.polyline(routeGeometry, {className: 'route-casing', interactive: false}).addTo(map));
+    state.routeLayers.push(L.polyline(routeGeometry, {className: 'route', interactive: false}).addTo(map));
+  } else if (segments.length) {
+    for (const s of segments) {
+      const a = points.get(s.from), b = points.get(s.to); if (!a || !b) continue;
+      const coords = [[a.latitude, a.longitude], [b.latitude, b.longitude]];
+      state.routeLayers.push(L.polyline(coords, {className: 'route-casing', interactive: false}).addTo(map));
+      state.routeLayers.push(L.polyline(coords, {className: 'route schematic'}).bindTooltip('Ligação esquemática: sem traçado das ruas').addTo(map));
+    }
+  }
+  for (const p of graph.points) {
+    const icon = p.type === 'STORE' ? pinIcon('origin', 'Loja') : p.type === 'CUSTOMER' ? pinIcon('client', 'Cliente') : vertexIcon(p.id);
+    const marker = L.marker([p.latitude, p.longitude], {icon, keyboard: true, title: `${label(p.id)} · ${p.name}`, zIndexOffset: p.type === 'INTERMEDIATE' ? 0 : 500})
+      .bindPopup(`<b>${esc(label(p.id))} · ${esc(p.name)}</b><br>${esc(p.address || '')}`).addTo(map);
+    state.markers.set(p.id, marker);
+  }
+}
+
 function drawServiceArea(points) {
   if (state.serviceAreaLayer) map.removeLayer(state.serviceAreaLayer);
+  state.serviceAreaLayer = null;
   if (!points?.length) return;
-  state.serviceAreaLayer = L.polygon(points.map(point => [point.latitude, point.longitude]), {pane: 'serviceArea', color: '#12634f', weight: 2, opacity: .55, fillColor: '#c8f55a', fillOpacity: .09, interactive: false}).addTo(map);
+  state.serviceAreaLayer = L.polygon(points.map(p => [p.latitude, p.longitude]), {pane: 'serviceArea', className: 'area', interactive: false}).addTo(map);
 }
-function renderMatrix(ids, matrix, points) {
-  const byId = new Map(points.map(point => [point.id, point]));
-  $('vertexLegend').replaceChildren(...ids.map(id => {
-    const chip = document.createElement('span'); chip.textContent = `${id}: ${byId.get(id)?.name || id}`; return chip;
-  }));
-  const table = $('matrixTable'); table.replaceChildren();
-  const head = document.createElement('tr'); head.append(document.createElement('th'));
-  ids.forEach(id => { const th = document.createElement('th'); th.textContent = id; head.append(th); });
-  const thead = document.createElement('thead'); thead.append(head); table.append(thead);
-  const body = document.createElement('tbody');
-  matrix.forEach((row, index) => {
-    const tr = document.createElement('tr'), th = document.createElement('th'); th.textContent = ids[index]; tr.append(th);
-    row.forEach(value => { const td = document.createElement('td'); td.textContent = value == null ? '∞' : fmt(value); if (value == null) td.className = 'infinity'; tr.append(td); });
-    body.append(tr);
-  });
-  table.append(body);
-}
-function fitGraphPoints(points, maxZoom = 13) { if (points.length) map.fitBounds(points.map(point => [point.latitude, point.longitude]), {padding: [24, 24], maxZoom}); }
-async function check(response) { const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.message || 'Não foi possível concluir a operação.'); return body; }
 
+/* ================= Matriz e ligações ================= */
+function renderMatrix() {
+  const table = $('matrixTable'); table.querySelectorAll('thead, tbody').forEach(n => n.remove());
+  const ids = state.ids;
+  const head = '<thead><tr><th scope="col"><span class="sr">De / para</span></th>' + ids.map(i => `<th scope="col" title="${esc(nameOf(i))}">${esc(label(i))}</th>`).join('') + '</tr></thead>';
+  const body = '<tbody>' + ids.map((a, r) => `<tr><th scope="row" title="${esc(nameOf(a))}">${esc(label(a))}</th>` + ids.map((b, c) => {
+    const v = state.matrix[r]?.[c], self = a === b, missing = !Number.isFinite(num(v));
+    const cls = self ? 'self' : missing ? 'inf' : state.routeKeys.has(a + '>' + b) ? 'on-route' : '';
+    return `<td class="${cls}" data-r="${r}" data-c="${c}">${self ? '0' : missing ? '∞' : fmt(v)}</td>`;
+  }).join('') + '</tr>').join('') + '</tbody>';
+  table.insertAdjacentHTML('beforeend', head + body);
+  $('matrixEmpty').hidden = true; $('matrixWrap').hidden = false;
+  $('cellRead').textContent = 'Passe o cursor sobre um valor para ler a ligação.';
+}
+$('matrixTable').addEventListener('pointerover', e => {
+  const t = $('matrixTable'); t.querySelectorAll('.col-hover').forEach(x => x.classList.remove('col-hover'));
+  const td = e.target.closest('td'); if (!td) return;
+  t.querySelectorAll(`td[data-c="${td.dataset.c}"]`).forEach(x => x.classList.add('col-hover'));
+  const a = state.ids[td.dataset.r], b = state.ids[td.dataset.c], v = state.matrix[td.dataset.r]?.[td.dataset.c];
+  const oneWay = Number.isFinite(num(v)) && !Number.isFinite(num(state.matrix[td.dataset.c]?.[td.dataset.r]));
+  $('cellRead').innerHTML = a === b ? `<b>${esc(label(a))}</b> para ele mesmo: 0 km.`
+    : !Number.isFinite(num(v)) ? `Não há ligação direta de <b>${esc(label(a))}</b> para <b>${esc(label(b))}</b>.`
+    : `<b>${esc(label(a))} → ${esc(label(b))}</b>: ${fmt(v)} km, de ${esc(nameOf(a))} até ${esc(nameOf(b))}${oneWay ? ' (mão única)' : ''}${state.routeKeys.has(a + '>' + b) ? '. Faz parte da rota.' : '.'}`;
+});
+
+function vbadgeClass(id) { const t = state.types.get(id); return t === 'STORE' ? 'origin' : t === 'CUSTOMER' ? 'client' : ''; }
+function renderEdges() {
+  const graph = state.graph, outs = new Map(), has = new Set(graph.edges.map(e => e.from + '>' + e.to));
+  for (const e of graph.edges) { if (!outs.has(e.from)) outs.set(e.from, []); outs.get(e.from).push(e); }
+  $('edgeList').innerHTML = graph.points.map(p => {
+    const list = outs.get(p.id) || [];
+    const chips = list.map(e => `<span class="edge-chip num${has.has(e.to + '>' + e.from) ? '' : ' oneway'}" title="${esc(nameOf(e.to))}">${esc(label(e.to))} <em>${fmt(e.distanceKm)}</em></span>`).join('') || '<span class="edge-chip"><em>sem saídas</em></span>';
+    return `<div class="row"><span class="vbadge ${vbadgeClass(p.id)}" title="${esc(p.name)}">${esc(label(p.id))}</span><span class="grow"><span class="outs">${chips}</span></span></div>`;
+  }).join('');
+  $('graphInfo').textContent = `${graph.points.length} pontos · ${graph.edges.length} ligações`;
+  $('edgesEmpty').hidden = true; $('edgeList').hidden = false;
+}
+
+/* ================= Carregamento e grafo ================= */
 async function load() {
   try {
     const [graph, status] = await Promise.all([fetch('/api/graph').then(check), fetch('/api/status').then(check)]);
-    state.fixed = graph; applyGraph(graph, false);
-    const store = graph.graph.points[0]; selectOrigin({displayName: store.address, latitude: store.latitude, longitude: store.longitude, name: store.name}, false);
+    // O mapa abre limpo: o grafo de demonstração fica guardado e só aparece se o usuário usar os exemplos.
+    state.fixed = graph;
     $('apiStatus').textContent = status.dynamicGraphEnabled
-      ? (status.demoMode ? 'Geração dinâmica • pontos novos com fallback local' : 'Geração híbrida disponível • fallback pronto')
-      : 'Modo fixo • fallback pronto';
-  } catch (error) { toast(error.message); }
+      ? (status.demoMode ? 'Geração dinâmica ativa, com fallback local' : 'Geração híbrida ativa, com fallback local')
+      : 'Modo fixo, com fallback local';
+  } catch (error) { $('apiStatus').textContent = 'Serviços indisponíveis'; toast(error.message); }
 }
 
 function applyGraph(data, dynamic) {
   const fixedFallback = data.graphSource === 'GRAPH_JSON_FALLBACK';
-  state.current = data.graph; state.graphId = dynamic && !fixedFallback ? data.graphId : null;
-  drawServiceArea(data.serviceArea); drawGraph(data.graph); fitGraphPoints(data.graph.points);
-  renderMatrix(data.vertexOrder, data.matrix, data.graph.points);
+  state.graph = data.graph; state.ids = data.vertexOrder; state.matrix = data.matrix;
+  state.graphId = dynamic && !fixedFallback ? data.graphId : null;
+  state.path = []; state.routeKeys = new Set(); state.segments = [];
+  indexGraph(data.graph);
+  drawServiceArea(data.serviceArea); drawGraph(data.graph); fitPoints(data.graph.points, 13);
+  renderMatrix(); renderEdges();
   $('demoButton').disabled = dynamic && !fixedFallback;
   resetSimulation(); clearDestination();
 }
 
-function renderSearchResults(container, results, onSelect) {
+function renderResults(container, results, onSelect) {
   const box = $(container); box.replaceChildren();
+  if (!results.length) { const p = document.createElement('p'); p.textContent = 'Nenhum endereço encontrado. Tente com número e bairro.'; box.append(p); return; }
   results.forEach(result => {
-    const button = document.createElement('button'); button.type = 'button'; button.textContent = result.displayName;
-    button.addEventListener('click', () => onSelect(result)); box.append(button);
+    const button = document.createElement('button'); button.type = 'button';
+    const [first, ...rest] = result.displayName.split(', ');
+    button.innerHTML = `<b>${esc(first)}</b>${esc(rest.join(', '))}`;
+    button.addEventListener('click', () => { box.replaceChildren(); onSelect(result); });
+    box.append(button);
   });
 }
+function searching(container) { const p = document.createElement('p'); p.textContent = 'Buscando…'; $(container).replaceChildren(p); }
 
 $('originSearchForm').addEventListener('submit', async event => {
-  event.preventDefault(); $('originResults').textContent = 'Buscando…';
+  event.preventDefault(); searching('originResults'); $('searchResults').replaceChildren();
   try {
     const results = await fetch('/api/geocoding/search?scope=origin&query=' + encodeURIComponent($('originAddress').value)).then(check);
-    renderSearchResults('originResults', results, result => selectOrigin(result, true));
-  } catch (error) { $('originResults').textContent = ''; toast(error.message); }
+    renderResults('originResults', results, r => selectOrigin(r, true));
+  } catch (error) { $('originResults').replaceChildren(); toast(error.message); }
 });
 $('defaultOriginButton').addEventListener('click', () => {
-  const store = state.fixed.graph.points[0];
-  selectOrigin({displayName: store.address, latitude: store.latitude, longitude: store.longitude, name: store.name}, true);
+  const store = state.fixed.graph.points.find(p => p.type === 'STORE') || state.fixed.graph.points[0];
+  selectOrigin({displayName: store.address, latitude: store.latitude, longitude: store.longitude, name: store.name}, true, true);
 });
-function selectOrigin(result, pan) {
+function selectOrigin(result, pan, isStore = false) {
   state.selectedOrigin = {name: result.name || 'Origem escolhida', address: result.displayName, latitude: result.latitude, longitude: result.longitude};
-  state.editMode = 'origin'; $('selectedOriginAddress').textContent = state.selectedOrigin.address;
-  $('selectedOriginCoords').textContent = `${result.latitude.toFixed(6)}, ${result.longitude.toFixed(6)}`;
+  state.originIsStore = isStore; state.editMode = 'origin';
+  $('originAddress').value = result.displayName;
   if (state.originMarker) map.removeLayer(state.originMarker);
-  state.originMarker = L.marker([result.latitude, result.longitude], {icon: icon('STORE')}).addTo(map);
-  if (pan) map.panTo([result.latitude, result.longitude]);
+  state.originMarker = L.marker([result.latitude, result.longitude], {icon: pinIcon('origin', isStore ? 'Loja' : 'Partida', true), zIndexOffset: 900}).addTo(map);
+  $('generateGraphButton').disabled = false;
+  const status = $('graphGenerationStatus'); status.className = 'hint';
+  status.textContent = 'Escolha o raio e gere o grafo para ver os pontos e as ligações da região.';
+  setHint('Clique no mapa se quiser ajustar o ponto exato da partida.');
+  if (pan) map.setView([result.latitude, result.longitude], Math.max(map.getZoom(), 14));
 }
+function setHint(text) { $('mapHint').textContent = text; }
+
+function selectedRadius() {
+  const km = $('radius').querySelector('[aria-pressed="true"]').dataset.km;
+  if (km !== 'custom') return Number(km);
+  const value = Number(String($('customRadius').value).replace(',', '.'));
+  const ok = Number.isFinite(value) && value >= 3 && value <= 20;
+  $('customRadius').parentElement.classList.toggle('invalid', !ok);
+  return ok ? value : null;
+}
+$('customRadius').addEventListener('input', () => $('customRadius').parentElement.classList.remove('invalid'));
 $('generateGraphButton').addEventListener('click', async () => {
   if (!state.selectedOrigin) return;
-  const button = $('generateGraphButton'), radiusKm = Number($('graphRadius').value);
-  button.disabled = true; button.textContent = 'Gerando matriz da região…';
-  $('graphGenerationStatus').textContent = 'Selecionando os pontos verificados mais próximos e montando a topologia…';
+  const radiusKm = selectedRadius();
+  if (radiusKm === null) { toast('Digite um raio entre 3 e 20 km.'); $('customRadius').focus(); return; }
+  const button = $('generateGraphButton'), status = $('graphGenerationStatus');
+  button.disabled = true; button.innerHTML = '<span class="spinner" aria-hidden="true"></span>Gerando o grafo…';
+  status.className = 'hint'; status.textContent = 'Escolhendo pontos nas ruas da região e calculando as distâncias…';
   try {
-    const data = await fetch('/api/graphs/generate', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...state.selectedOrigin, radiusKm, forceRefresh: false})}).then(check);
+    const data = await fetch('/api/graphs/generate', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({...state.selectedOrigin, radiusKm, forceRefresh: false})}).then(check);
     if (state.originMarker) { map.removeLayer(state.originMarker); state.originMarker = null; }
     applyGraph(data, true); state.editMode = null;
-    const intermediates = data.graph.points.filter(point => point.type === 'INTERMEDIATE').length;
-    const source = data.graphSource === 'OSRM_RADIAL_DYNAMIC'
-      ? 'com pontos viários novos distribuídos em dois anéis e pesos OSRM'
-      : data.graphSource?.startsWith('LOCAL_')
-      ? 'com pontos locais verificados e pesos acadêmicos de fallback'
-      : data.graphSource === 'GRAPH_JSON_FALLBACK'
-      ? 'usando o graph.json de demonstração porque o Overpass não respondeu'
-      : data.fallbackUsed ? 'com topologia Overpass e pesos aproximados de fallback'
-        : 'com topologia Overpass e pesos OSRM';
-    $('graphGenerationStatus').textContent = `Grafo ${data.graphId} gerado com ${intermediates} pontos, ${data.graph.edges.length} ligações e ${source}.`;
-  } catch (error) { $('graphGenerationStatus').textContent = 'A geração não foi concluída; o grafo anterior foi preservado.'; toast(error.message); }
-  finally { button.disabled = false; button.textContent = 'Gerar grafo da região'; }
+    const intermediates = data.graph.points.filter(p => p.type === 'INTERMEDIATE').length;
+    const source = data.graphSource === 'OSRM_RADIAL_DYNAMIC' ? 'pontos novos nas ruas e pesos do OSRM'
+      : data.graphSource?.startsWith('LOCAL_') ? 'pontos locais verificados e pesos aproximados'
+      : data.graphSource === 'GRAPH_JSON_FALLBACK' ? 'o grafo de demonstração, porque o serviço de mapas não respondeu'
+      : data.fallbackUsed ? 'ruas do OpenStreetMap e pesos aproximados' : 'ruas do OpenStreetMap e pesos do OSRM';
+    status.className = 'hint ok'; status.textContent = `Grafo pronto: ${intermediates} pontos, ${data.graph.edges.length} ligações, com ${source}.`;
+    setHint('Agora busque o endereço do cliente dentro da área.');
+  } catch (error) {
+    status.className = 'hint err'; status.textContent = 'O grafo não foi gerado; o anterior continua valendo.'; toast(error.message);
+  } finally { button.disabled = false; button.textContent = 'Gerar grafo desta região'; }
 });
 
 $('searchForm').addEventListener('submit', async event => {
-  event.preventDefault(); $('searchResults').textContent = 'Buscando…';
+  event.preventDefault(); searching('searchResults'); $('originResults').replaceChildren();
   const scope = state.graphId ? 'dynamic' : 'service';
   try {
     const results = await fetch(`/api/geocoding/search?scope=${scope}&query=` + encodeURIComponent($('address').value)).then(check);
-    renderSearchResults('searchResults', results, selectCustomer);
-  } catch (error) { $('searchResults').textContent = ''; toast(error.message); }
+    renderResults('searchResults', results, selectCustomer);
+  } catch (error) { $('searchResults').replaceChildren(); toast(error.message); }
 });
 $('demoButton').addEventListener('click', () => {
-  if (state.graphId) { toast('O cliente de demonstração pertence ao grafo fixo. Pesquise um destino na região gerada.'); return; }
-  const demo = state.fixed.demoCustomer; selectCustomer({displayName: demo.address, latitude: demo.latitude, longitude: demo.longitude, fallback: true});
+  if (state.graphId) { toast('O cliente de exemplo pertence ao grafo de demonstração. Busque um cliente dentro da região gerada.'); return; }
+  const demo = state.fixed.demoCustomer;
+  selectCustomer({displayName: demo.address, latitude: demo.latitude, longitude: demo.longitude, fallback: true});
 });
 function selectCustomer(result) {
   state.selected = {name: result.fallback ? 'Cliente de demonstração' : 'Cliente', address: result.displayName, latitude: result.latitude, longitude: result.longitude};
-  state.editMode = 'customer'; $('selectedAddress').textContent = state.selected.address;
-  $('selectedCoords').textContent = `${result.latitude.toFixed(6)}, ${result.longitude.toFixed(6)}`; $('selection').classList.remove('hidden');
+  state.editMode = 'customer'; $('address').value = result.displayName;
   if (state.customerMarker) map.removeLayer(state.customerMarker);
-  state.customerMarker = L.marker([result.latitude, result.longitude], {icon: icon('CUSTOMER')}).addTo(map); map.panTo([result.latitude, result.longitude]);
+  state.customerMarker = L.marker([result.latitude, result.longitude], {icon: pinIcon('client', 'Cliente', true), zIndexOffset: 900}).addTo(map);
+  map.panTo([result.latitude, result.longitude]);
+  $('confirmButton').disabled = false;
+  setHint('Clique no mapa para ajustar o ponto de entrega.');
 }
 map.on('click', event => {
-  if (state.editMode === 'origin' && state.selectedOrigin && state.originMarker) {
-    state.selectedOrigin.latitude = event.latlng.lat; state.selectedOrigin.longitude = event.latlng.lng;
-    state.selectedOrigin.address = `${state.selectedOrigin.address} (posição ajustada no mapa)`;
-    state.originMarker.setLatLng(event.latlng); $('selectedOriginCoords').textContent = `${event.latlng.lat.toFixed(6)}, ${event.latlng.lng.toFixed(6)}`;
+  const {lat, lng} = event.latlng;
+  if (state.editMode === 'origin' && state.selectedOrigin) {
+    state.selectedOrigin.latitude = lat; state.selectedOrigin.longitude = lng;
+    if (!/ajustada no mapa/.test(state.selectedOrigin.address)) state.selectedOrigin.address += ' (posição ajustada no mapa)';
+    if (!state.originMarker) state.originMarker = L.marker(event.latlng, {icon: pinIcon('origin', 'Nova partida', true), zIndexOffset: 900}).addTo(map);
+    else state.originMarker.setLatLng(event.latlng);
+    setHint(`Partida ajustada para ${lat.toFixed(5)}, ${lng.toFixed(5)}. Gere o grafo para usar essa posição.`);
   } else if (state.editMode === 'customer' && state.selected && state.customerMarker) {
-    state.selected.latitude = event.latlng.lat; state.selected.longitude = event.latlng.lng;
-    state.customerMarker.setLatLng(event.latlng); $('selectedCoords').textContent = `${event.latlng.lat.toFixed(6)}, ${event.latlng.lng.toFixed(6)}`;
+    state.selected.latitude = lat; state.selected.longitude = lng; state.customerMarker.setLatLng(event.latlng);
+    setHint(`Entrega ajustada para ${lat.toFixed(5)}, ${lng.toFixed(5)}.`);
   }
 });
+
 $('confirmButton').addEventListener('click', async () => {
-  if (!state.selected) return; const button = $('confirmButton'); button.disabled = true; button.textContent = 'Calculando pesos e Dijkstra…';
+  if (!state.selected) return;
+  if (!state.graphId && state.selectedOrigin && !state.originIsStore) { toast('Gere o grafo da região da partida antes de calcular a rota.'); return; }
+  const button = $('confirmButton'); button.disabled = true; button.innerHTML = '<span class="spinner" aria-hidden="true"></span>Calculando…';
   try {
-    const data = await fetch('/api/routes/optimize', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...state.selected, graphId: state.graphId})}).then(check);
+    const data = await fetch('/api/routes/optimize', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({...state.selected, graphId: state.graphId})}).then(check);
     showOptimization(data);
   } catch (error) { toast(error.message); }
-  finally { button.disabled = false; button.textContent = 'Confirmar e calcular rota'; }
+  finally { button.disabled = !state.selected; button.textContent = 'Calcular rota'; }
 });
 
 function showOptimization(data) {
-  state.current = data.graph; state.steps = data.dijkstra.steps; state.step = -1;
+  state.graph = data.graph; state.ids = data.graph.points.map(p => p.id); state.matrix = data.matrix;
+  state.steps = data.dijkstra.steps; state.path = data.dijkstra.path; state.segments = data.segments || [];
+  state.routeKeys = new Set(state.path.slice(1).map((v, i) => state.path[i] + '>' + v));
   state.editMode = null;
   if (state.customerMarker) { map.removeLayer(state.customerMarker); state.customerMarker = null; }
+  indexGraph(data.graph);
   drawGraph(data.graph, data.segments, data.routeGeometry);
-  const ids = data.graph.points.map(point => point.id), pathIds = new Set(data.dijkstra.path);
-  fitGraphPoints(data.graph.points.filter(point => pathIds.has(point.id)), 14); renderMatrix(ids, data.matrix, data.graph.points);
-  $('routePath').textContent = data.dijkstra.path.join(' → ');
-  const missingGeometry = !data.routeGeometry || data.routeGeometry.length < 2;
-  const weightText = data.fallbackUsed ? 'Pesos de fallback foram usados em parte do grafo.' : 'Pesos rodoviários obtidos pelo OSRM.';
-  const detourText = Number.isFinite(data.detourRatio) && Number.isFinite(data.directReferenceDistanceKm)
-    ? ` Validação: ${fmt(data.directReferenceDistanceKm)} km na referência direta e ${fmt(data.routeDistanceKm)} km pela sequência do grafo (${fmt((data.detourRatio - 1) * 100)}% de desvio).`
-    : '';
-  const rejectedCount = data.rejectedTransitPoints?.length || 0;
-  const rejectedText = rejectedCount
-    ? ` ${rejectedCount} ${rejectedCount === 1 ? 'ponto intermediário inadequado foi removido' : 'pontos intermediários inadequados foram removidos'} e o Dijkstra foi recalculado.`
-    : '';
-  const directSafetyText = data.directSafetyConnectionUsed
-    ? ' As alternativas intermediárias causavam desvio desnecessário; o Dijkstra utilizou a ligação direta de segurança.'
-    : '';
-  $('routeMeta').textContent = missingGeometry
-    ? `${weightText} Trechos tracejados são ligações esquemáticas, não trajetos sobre as ruas.${rejectedText}${directSafetyText}${detourText}`
-    : `${weightText} A geometria foi calculada continuamente na ordem escolhida pelo Dijkstra.${rejectedText}${directSafetyText}${detourText}`;
-  $('distanceBadge').textContent = `${fmt(data.dijkstra.totalDistanceKm)} km`; $('resultCard').classList.remove('hidden');
-  ['startBtn', 'nextBtn', 'autoBtn', 'resetBtn'].forEach(id => $(id).disabled = false);
-  $('simulationMessage').textContent = 'Rota pronta. Inicie para acompanhar como o algoritmo chegou à resposta.';
-  $('resultCard').scrollIntoView({behavior: 'smooth', block: 'center'});
+  const onPath = new Set(state.path);
+  fitPoints(data.graph.points.filter(p => onPath.has(p.id)), 15);
+  renderMatrix(); renderEdges(); renderRoute(data);
+  $('simEmpty').hidden = true; $('sim').hidden = false;
+  stop(); go(state.steps.length - 1);
+  setHint('Rota calculada. Use o painel da direita para ver cada passo.');
 }
 
-function renderStep(index) {
-  state.step = Math.max(0, Math.min(index, state.steps.length - 1)); const step = state.steps[state.step];
-  $('stepNumber').textContent = `${state.step + 1} / ${state.steps.length}`; $('currentVertex').textContent = step.selectedVertex;
-  $('visitedVertices').textContent = step.visited.join(', ') || '—'; const updated = step.analyzedNeighbors.find(item => item.updated);
-  $('simulationMessage').textContent = updated ? `A distância de ${updated.neighbor} era ${fmt(updated.oldDistance)}. Passando por ${step.selectedVertex}, o novo valor é ${fmt(step.distances[step.selectedVertex])} + ${fmt(updated.edgeWeight)} = ${fmt(updated.newDistance)} km.` : step.message;
-  $('relaxations').replaceChildren(...step.analyzedNeighbors.map(item => { const element = document.createElement('div'); element.className = 'relax ' + (item.updated ? 'updated' : ''); element.textContent = `${step.selectedVertex} → ${item.neighbor}: ${fmt(item.candidateDistance)} km — ${item.reason}`; return element; }));
-  $('distanceState').replaceChildren(...Object.entries(step.distances).map(([id, value]) => { const element = document.createElement('span'); element.textContent = `${id}: ${fmt(value)}${step.predecessors[id] ? ` ← ${step.predecessors[id]}` : ''}`; return element; }));
-  state.markers.forEach((marker, id) => { const element = marker.getElement(); if (element) element.style.opacity = step.visited.includes(id) ? '1' : '.45'; });
-  const current = state.markers.get(step.selectedVertex)?.getElement(); if (current) current.style.filter = 'drop-shadow(0 0 8px #f17842)';
-  state.edgeLayers.forEach(layer => { const active = step.analyzedNeighbors.some(item => layer._edge === `${step.selectedVertex}>${item.neighbor}`); layer.setStyle({color: active ? '#3975d1' : '#799087', weight: active ? 4 : 1.5}); });
-  $('prevBtn').disabled = state.step === 0; $('nextBtn').disabled = state.step === state.steps.length - 1;
-  if (state.step === state.steps.length - 1) $('simulationMessage').textContent += ` Caminho final: ${$('routePath').textContent}.`;
+function renderRoute(data) {
+  const missingGeometry = !data.routeGeometry || data.routeGeometry.length < 2;
+  const parts = [data.fallbackUsed ? 'Parte dos pesos é aproximada.' : 'Pesos rodoviários do OSRM.'];
+  if (Number.isFinite(data.detourRatio) && Number.isFinite(data.directReferenceDistanceKm))
+    parts.push(`Referência direta: ${fmt(data.directReferenceDistanceKm)} km (${fmt((data.detourRatio - 1) * 100)}% de desvio).`);
+  const rejected = data.rejectedTransitPoints?.length || 0;
+  if (rejected) parts.push(`${rejected} ${rejected === 1 ? 'ponto intermediário foi descartado' : 'pontos intermediários foram descartados'} por desvio.`);
+  if (data.directSafetyConnectionUsed) parts.push('Os desvios pelos pontos intermediários eram longos demais, então a rota usa a ligação direta.');
+  if (missingGeometry) parts.push('Trechos tracejados são ligações esquemáticas.');
+  $('distanceBadge').innerHTML = `${fmt(data.dijkstra.totalDistanceKm)}<span>km</span>`;
+  $('routeMeta').textContent = parts.join(' ');
+  const segment = (a, b) => state.segments.find(s => s.from === a && s.to === b)?.distanceKm ?? num(state.matrix[state.ids.indexOf(a)]?.[state.ids.indexOf(b)]);
+  let acc = 0;
+  $('stops').innerHTML = state.path.map((id, i) => {
+    if (i) acc += segment(state.path[i - 1], id);
+    const t = state.types.get(id);
+    const icon = t === 'STORE' ? `<span class="badge-icon origin">${ICON_HOME}</span>` : t === 'CUSTOMER' ? `<span class="badge-icon client">${ICON_PIN}</span>` : '<span class="stop-dot" aria-hidden="true"></span>';
+    const sub = t === 'STORE' ? 'Saída da loja' : t === 'CUSTOMER' ? 'Entrega' : label(id);
+    return `<li>${icon}<span><b title="${esc(nameOf(id))}">${esc(nameOf(id))}</b><small>${esc(sub)}</small></span><span class="km num">${i ? fmt(acc) + ' km' : 'início'}</span></li>`;
+  }).join('');
+  $('resultCard').hidden = false;
 }
-function resetSimulation() {
-  clearInterval(state.timer); state.steps = []; state.step = -1; $('resultCard').classList.add('hidden');
-  ['startBtn', 'prevBtn', 'nextBtn', 'autoBtn', 'pauseBtn', 'resetBtn'].forEach(id => $(id).disabled = true);
-  $('stepNumber').textContent = $('currentVertex').textContent = $('visitedVertices').textContent = '—';
-  $('distanceState').textContent = 'Nenhuma execução.'; $('relaxations').replaceChildren();
-  $('simulationMessage').textContent = 'Calcule uma rota para liberar a simulação.';
-}
+
 function clearDestination() {
-  state.selected = null; state.editMode = null; $('selection').classList.add('hidden'); $('searchResults').replaceChildren();
+  state.selected = null; if (state.editMode === 'customer') state.editMode = null;
+  $('searchResults').replaceChildren(); $('address').value = ''; $('confirmButton').disabled = true;
   if (state.customerMarker) { map.removeLayer(state.customerMarker); state.customerMarker = null; }
 }
-$('startBtn').onclick = () => renderStep(0); $('nextBtn').onclick = () => renderStep(state.step + 1); $('prevBtn').onclick = () => renderStep(state.step - 1);
-$('autoBtn').onclick = () => { clearInterval(state.timer); if (state.step < 0) renderStep(0); state.timer = setInterval(() => { if (state.step >= state.steps.length - 1) { clearInterval(state.timer); return; } renderStep(state.step + 1); }, 1400); $('pauseBtn').disabled = false; };
-$('pauseBtn').onclick = () => { clearInterval(state.timer); $('pauseBtn').disabled = true; };
-$('resetBtn').onclick = () => { clearInterval(state.timer); state.step = -1; $('stepNumber').textContent = $('currentVertex').textContent = $('visitedVertices').textContent = '—'; $('distanceState').textContent = 'Nenhuma execução.'; $('relaxations').replaceChildren(); $('simulationMessage').textContent = 'Simulação reiniciada. Clique em iniciar.'; state.markers.forEach(marker => { const element = marker.getElement(); if (element) { element.style.opacity = '1'; element.style.filter = ''; } }); };
 
+/* ================= Simulação do Dijkstra ================= */
+function stepClass(id, s) {
+  const t = state.types.get(id);
+  if (t === 'STORE') return 'origin';
+  if (id === s.selectedVertex) return 'current';
+  if (s.visited.includes(id)) return 'visited';
+  return t === 'CUSTOMER' ? 'client' : '';
+}
+function render() {
+  const s = state.steps[state.step], n = state.steps.length, last = state.step === n - 1;
+  const u = s.selectedVertex, du = num(s.distances[u]);
+  $('stepTitle').innerHTML = `Passo ${state.step + 1} <span>de ${n}</span>`;
+  $('trackFill').style.width = `${((state.step + 1) / n) * 100}%`;
+  const tr = $('track'); tr.setAttribute('aria-valuemax', n); tr.setAttribute('aria-valuenow', state.step + 1); tr.setAttribute('aria-valuetext', `Passo ${state.step + 1} de ${n}`);
+  $('prev').disabled = $('restart').disabled = state.step === 0; $('next').disabled = last;
+  const b = $('curBadge'); b.textContent = label(u); b.title = nameOf(u);
+  const ups = s.analyzedNeighbors.filter(r => r.updated).length;
+  if (state.step === 0) {
+    $('curTitle').textContent = 'Começando pela loja';
+    $('curText').textContent = 'A loja começa com distância 0 e todos os outros pontos com ∞. O algoritmo testa cada ligação que sai dela e anota as distâncias.';
+  } else if (last && state.types.get(u) === 'CUSTOMER') {
+    $('curTitle').textContent = `Chegou ao cliente: ${fmt(du)} km`;
+    $('curText').textContent = `O cliente foi o ponto mais perto ainda aberto, então nenhum caminho mais curto pode aparecer. Rota final: ${state.path.map(label).join(' → ')}.`;
+  } else {
+    $('curTitle').textContent = `Visitando ${label(u)} · ${nameOf(u)}`;
+    $('curText').textContent = `${label(u)} é o ponto aberto mais perto da loja, a ${fmt(du)} km. Essa distância agora é definitiva. ` +
+      (s.analyzedNeighbors.length ? (ups ? `Testando as ligações que saem dele, ${ups === 1 ? '1 distância melhorou' : ups + ' distâncias melhoraram'}.` : 'Nenhuma ligação que sai dele encurta outro caminho.') : 'Ele não tem ligações para pontos ainda abertos.');
+  }
+  $('relaxTitle').textContent = `Ligações que saem de ${label(u)}`;
+  $('relax').innerHTML = s.analyzedNeighbors.length ? s.analyzedNeighbors.map(r => `
+    <div class="row">
+      <span class="vbadge ${stepClass(r.neighbor, s)}">${esc(label(r.neighbor))}</span>
+      <span class="grow"><span class="nm">${esc(nameOf(r.neighbor))}</span>
+        <span class="calc num">${fmt(du)} + ${fmt(r.edgeWeight)} = ${fmt(r.candidateDistance)} km · antes ${fmt(r.oldDistance)}</span></span>
+      <span class="pill ${r.updated ? 'up' : 'keep'}" title="${esc(r.reason || '')}">${r.updated ? 'Atualizada' : 'Mantida'}</span>
+    </div>`).join('') : '<p class="empty">Nenhuma ligação para pontos ainda abertos.</p>';
+  const ids = state.ids;
+  const known = ids.filter(i => Number.isFinite(num(s.distances[i]))).sort((a, c) => num(s.distances[a]) - num(s.distances[c]));
+  const unknown = ids.filter(i => !Number.isFinite(num(s.distances[i])));
+  $('distLegend').textContent = `${s.visited.length} definitivas`;
+  $('dist').innerHTML = known.map(i => `
+    <div class="row">
+      <span class="vbadge ${stepClass(i, s)}">${esc(label(i))}</span>
+      <span class="grow name">${esc(nameOf(i))}</span>
+      <span class="d num">${fmt(s.distances[i])} km</span>
+      <span class="via">${s.predecessors[i] ? 'via ' + esc(label(s.predecessors[i])) : '—'}</span>
+    </div>`).join('') + (unknown.length ? `<div class="row"><span class="grow name inf">${unknown.map(label).join(', ')}: ainda sem caminho (∞)</span></div>` : '');
+  // mapa
+  state.markers.forEach((marker, id) => {
+    const el = marker.getElement()?.querySelector('.vtx'); if (!el) return;
+    const queued = Number.isFinite(num(s.distances[id])) && !s.visited.includes(id);
+    el.className = 'vtx ' + (id === u ? 'current' : s.visited.includes(id) ? 'visited' : queued ? 'queued' : 'dim');
+  });
+  const active = new Set(s.analyzedNeighbors.map(r => u + '>' + r.neighbor));
+  const tree = new Set(Object.entries(s.predecessors).filter(([, p]) => p).map(([v, p]) => p + '>' + v));
+  for (const layer of state.edgeLayers) {
+    const el = layer.getElement(); if (!el) continue;
+    const isActive = active.has(layer._k) || active.has(layer._r);
+    el.classList.toggle('active', isActive);
+    el.classList.toggle('tree', !isActive && (tree.has(layer._k) || tree.has(layer._r)));
+  }
+  $('map').classList.toggle('route-dim', !last);
+}
+function go(i) { if (!state.steps.length) return; state.step = Math.max(0, Math.min(state.steps.length - 1, i)); render(); }
+function stop() { clearInterval(state.timer); state.timer = null; $('playIcon').innerHTML = '<path d="M4 2.5v9l7.5-4.5z" fill="currentColor"/>'; $('play').setAttribute('aria-label', 'Reproduzir'); }
+function play() {
+  if (!state.steps.length) return;
+  if (state.timer) return stop();
+  if (state.step === state.steps.length - 1) go(0);
+  $('playIcon').innerHTML = '<path d="M4 2.5h2v9H4zM8 2.5h2v9H8z" fill="currentColor"/>'; $('play').setAttribute('aria-label', 'Pausar');
+  state.timer = setInterval(() => { if (state.step >= state.steps.length - 1) return stop(); go(state.step + 1); }, 1300);
+}
+function resetSimulation() {
+  stop(); state.steps = []; state.step = -1;
+  $('sim').hidden = true; $('simEmpty').hidden = false; $('resultCard').hidden = true;
+  $('map').classList.remove('route-dim');
+}
+$('next').onclick = () => { stop(); go(state.step + 1); };
+$('prev').onclick = () => { stop(); go(state.step - 1); };
+$('restart').onclick = () => { stop(); go(0); };
+$('play').onclick = play;
+$('track').addEventListener('pointerdown', e => { stop(); const r = e.currentTarget.getBoundingClientRect(); go(Math.floor(((e.clientX - r.left) / r.width) * state.steps.length)); });
+$('track').addEventListener('keydown', e => { if (e.key === 'ArrowRight') { stop(); go(state.step + 1); e.preventDefault(); } if (e.key === 'ArrowLeft') { stop(); go(state.step - 1); e.preventDefault(); } });
+document.addEventListener('keydown', e => {
+  if (e.target.closest('input, .track, .leaflet-container') || $('sim').hidden) return;
+  if (e.key === 'ArrowRight') { stop(); go(state.step + 1); }
+  if (e.key === 'ArrowLeft') { stop(); go(state.step - 1); }
+});
+$('toSim').onclick = () => { $('tab-sim').click(); stop(); go(0); $('tab-sim').focus(); };
+
+/* ================= Controles segmentados ================= */
+function segmented(root, attr, onPick) {
+  const thumb = root.querySelector('.thumb'), btns = [...root.querySelectorAll('button')];
+  const place = () => { const on = btns.find(b => b.getAttribute(attr) === 'true'); if (!on || !on.offsetWidth) return; thumb.style.width = on.offsetWidth + 'px'; thumb.style.transform = `translateX(${on.offsetLeft - 4}px)`; };
+  btns.forEach(b => b.addEventListener('click', () => { btns.forEach(x => x.setAttribute(attr, x === b ? 'true' : 'false')); place(); onPick?.(b, btns.indexOf(b)); }));
+  new ResizeObserver(place).observe(root); place();
+}
+segmented($('radius'), 'aria-pressed', b => {
+  const custom = b.dataset.km === 'custom';
+  $('customRadiusRow').hidden = !custom; $('customRadiusHelp').hidden = !custom;
+  if (custom) { $('customRadius').focus(); $('customRadius').select(); }
+});
+segmented($('tabs'), 'aria-selected', (b, i) => {
+  ['view-sim', 'view-matrix', 'view-edges'].forEach((v, j) => { $(v).hidden = j !== i; });
+  $('right').classList.toggle('wide', i === 1);
+});
+
+/* ================= Tema claro / escuro ================= */
+const SUN = '<circle cx="8" cy="8" r="3.2" fill="currentColor"/><path d="M8 1.2v1.6M8 13.2v1.6M1.2 8h1.6M13.2 8h1.6M3.2 3.2l1.1 1.1M11.7 11.7l1.1 1.1M3.2 12.8l1.1-1.1M11.7 4.3l1.1-1.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>';
+const MOON = '<path d="M13.5 9.6A5.6 5.6 0 0 1 6.4 2.5a5.6 5.6 0 1 0 7.1 7.1z" fill="currentColor"/>';
+const isDark = () => document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+function paintThemeBtn() {
+  const dark = isDark();
+  $('themeIcon').innerHTML = dark ? SUN : MOON;
+  $('themeBtn').setAttribute('aria-label', dark ? 'Mudar para o tema claro' : 'Mudar para o tema escuro');
+}
+$('themeBtn').onclick = () => {
+  const next = isDark() ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem('routify-theme', next); } catch (e) { /* sem armazenamento: vale só nesta visita */ }
+  paintThemeBtn();
+};
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', paintThemeBtn);
+paintThemeBtn();
+
+window.addEventListener('resize', () => map.invalidateSize());
 load();

@@ -1,41 +1,164 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Rota Acadêmica — Dijkstra</title>
-  <link rel="stylesheet" href="/vendor/leaflet.css"><link rel="stylesheet" href="/css/app.css"><link rel="stylesheet" href="/css/layout-fix.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Routify Acadêmico</title>
+  <script>try { const t = localStorage.getItem('routify-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/vendor/leaflet.css">
+  <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
-<header class="hero"><div><span class="eyebrow">GRAFO DINÂMICO • MATRIZ • DIJKSTRA</span><h1>Routify Acadêmico</h1><p>Escolha a origem, gere a topologia e acompanhe o menor caminho.</p></div><div class="status"><span class="pulse"></span><span id="apiStatus">Carregando serviços…</span></div></header>
-<main>
-  <section class="grid top">
-    <article class="card search-card"><div class="step-tag">1</div><h2>Defina o ponto de partida</h2><p class="muted">Pesquise a loja ou origem, confirme no mapa e gere o grafo da região.</p>
-      <form id="originSearchForm"><label for="originAddress">Endereço de partida</label><div class="input-row"><input id="originAddress" maxlength="180" placeholder="Ex.: Av. Paulista, 1000" required><button type="submit">Buscar origem</button></div></form>
-      <button id="defaultOriginButton" class="secondary wide" type="button">Usar loja de demonstração</button><div id="originResults" class="results" aria-live="polite"></div>
-      <div id="originSelection" class="selection"><strong>Origem selecionada</strong><p id="selectedOriginAddress">Carregando loja configurada…</p><small id="selectedOriginCoords"></small><p class="hint">Clique no mapa para ajustar a origem antes de gerar.</p>
-        <label for="graphRadius">Raio da área atendida</label><div class="radius-row"><input id="graphRadius" type="number" min="3" max="20" step="1" value="10" inputmode="decimal"><span>km</span></div>
-        <button id="generateGraphButton" class="wide" type="button">Gerar grafo da região</button>
+<div class="app">
+  <div class="map-area">
+    <div id="map" aria-label="Mapa com a área atendida, o grafo e a rota"></div>
+    <div class="legend glass" aria-hidden="true">
+      <span><svg viewBox="0 0 18 10"><path d="M2 5h14" stroke="var(--route-casing)" stroke-width="5" stroke-linecap="round"/><path d="M2 5h14" stroke="var(--lime)" stroke-width="3" stroke-linecap="round"/></svg>Rota</span>
+      <span><svg viewBox="0 0 18 10"><path d="M1 5h16" stroke="var(--graph-edge)" stroke-width="1.4" stroke-dasharray="3 3"/></svg>Ligação</span>
+      <span><svg viewBox="0 0 18 10"><path d="M1 5h16" stroke="var(--blue)" stroke-width="2.5"/></svg>Em teste</span>
+      <span><svg viewBox="0 0 18 10"><rect x="1.5" y="1" width="15" height="8" rx="2" fill="var(--area-fill)" stroke="var(--area-stroke)" stroke-dasharray="3 2"/></svg>Área atendida</span>
+    </div>
+    <div class="map-tools">
+      <div class="zoom glass">
+        <button type="button" id="zoomIn" aria-label="Aproximar"><svg viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+        <button type="button" id="zoomOut" aria-label="Afastar"><svg viewBox="0 0 16 16"><path d="M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
       </div>
-      <p id="graphGenerationStatus" class="generation-status" aria-live="polite">O grafo fixo está disponível enquanto uma nova região não é gerada.</p>
-      <hr>
-      <div class="step-tag">2</div><h2>Escolha o destino</h2><p class="muted">Pesquise uma vez, confira o cliente no mapa e confirme.</p>
-      <form id="searchForm"><label for="address">Endereço do cliente</label><div class="input-row"><input id="address" maxlength="180" placeholder="Ex.: Av. Washington Luís, 5859" required><button type="submit">Buscar endereço</button></div></form>
-      <button id="demoButton" class="secondary wide">Usar cliente de demonstração</button><div id="searchResults" class="results" aria-live="polite"></div>
-      <div id="selection" class="selection hidden"><strong>Destino selecionado</strong><p id="selectedAddress"></p><small id="selectedCoords"></small><p class="hint">Clique no mapa para ajustar o marcador.</p><button id="confirmButton" class="wide">Confirmar e calcular rota</button></div>
-    </article>
-    <article class="card map-card"><div class="map-title"><div><div class="step-tag">3</div><h2>Confira no mapa</h2></div><div class="legend"><span><i class="dot area"></i>Área atendida</span><span><i class="dot store"></i>Origem</span><span><i class="dot node"></i>Ponto</span><span><i class="dot customer"></i>Cliente</span></div></div><div id="map" aria-label="Mapa do grafo acadêmico e da área atendida"></div><p class="map-help">A mancha verde clara delimita a área atendida. As linhas representam apenas as ligações dirigidas permitidas no grafo acadêmico.</p></article>
-  </section>
-  <section id="resultCard" class="card result hidden" aria-live="polite"><div><span class="eyebrow">MENOR CAMINHO ENCONTRADO PELO JAVA</span><h2 id="routePath"></h2><p id="routeMeta"></p></div><div id="distanceBadge" class="distance"></div></section>
-  <section class="grid learning">
-    <article class="card matrix-card"><div class="step-tag">4</div><h2>Matriz de adjacência ponderada</h2><p class="muted"><code>D = [dij]</code>: linha é a origem, coluna é o destino; “∞” significa ausência de ligação direta.</p><div id="vertexLegend" class="chips"></div><div class="table-wrap"><table id="matrixTable"><caption class="sr-only">Matriz de distâncias em quilômetros</caption></table></div></article>
-    <article class="card simulation"><div class="step-tag">5</div><h2>Simulação do Dijkstra</h2><p id="simulationMessage" class="explanation" aria-live="polite">Calcule uma rota para liberar a simulação.</p>
-      <div class="controls"><button id="startBtn" disabled>Iniciar simulação</button><button id="prevBtn" class="secondary" disabled>Passo anterior</button><button id="nextBtn" class="secondary" disabled>Próximo passo</button><button id="autoBtn" class="secondary" disabled>Executar automaticamente</button><button id="pauseBtn" class="secondary" disabled>Pausar</button><button id="resetBtn" class="ghost" disabled>Reiniciar</button></div>
-      <div class="step-grid"><div><small>PASSO</small><strong id="stepNumber">—</strong></div><div><small>VÉRTICE ATUAL</small><strong id="currentVertex">—</strong></div><div><small>VISITADOS</small><strong id="visitedVertices">—</strong></div></div>
-      <div id="relaxations" class="relaxations"></div><h3>Distâncias temporárias e predecessores</h3><div id="distanceState" class="distance-state muted">Nenhuma execução.</div>
-    </article>
-  </section>
-</main>
-<footer>Projeto acadêmico demonstrativo • Leaflet + © colaboradores do OpenStreetMap • Pesos em quilômetros</footer>
-<div id="toast" role="alert" aria-live="assertive"></div>
-<script src="/vendor/leaflet.js"></script><script src="/js/app.js"></script>
-</body></html>
+    </div>
+  </div>
+
+  <aside class="panel left glass" aria-label="Trajeto">
+    <div class="panel-scroll">
+      <div class="brand">
+        <div class="app-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 22 22"><path d="M4.5 16.5 9 10l4 3 4.5-7.5" fill="none" stroke="#c8ff2e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="4.5" cy="16.5" r="2" fill="#fff"/><circle cx="17.5" cy="5.5" r="2" fill="#fff"/></svg></div>
+        <div class="brand-text"><h1>Routify</h1><p>Entregas pelo menor caminho</p></div>
+        <button type="button" class="theme-btn" id="themeBtn" aria-label="Mudar para o tema escuro"><svg viewBox="0 0 16 16" id="themeIcon" aria-hidden="true"></svg></button>
+      </div>
+
+      <section>
+        <h2 class="group-title">Trajeto</h2>
+        <div class="group trip">
+          <div class="trip-line" aria-hidden="true"></div>
+          <form class="row" id="originSearchForm">
+            <span class="badge-icon origin" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M2 5.5 6 2l4 3.5V10H7.5V7.5h-3V10H2z" fill="currentColor"/></svg></span>
+            <label class="grow"><small>Partida · loja</small><input class="addr" id="originAddress" maxlength="180" placeholder="Buscar endereço de partida" autocomplete="off" required></label>
+            <button type="submit" class="icon-btn" aria-label="Buscar endereço de partida"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m10.5 10.5 3 3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
+          </form>
+          <form class="row" id="searchForm">
+            <span class="badge-icon client" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M6 1.2a3.3 3.3 0 0 0-3.3 3.3C2.7 7 6 10.8 6 10.8S9.3 7 9.3 4.5A3.3 3.3 0 0 0 6 1.2zm0 4.6a1.3 1.3 0 1 1 0-2.6 1.3 1.3 0 0 1 0 2.6z" fill="currentColor"/></svg></span>
+            <label class="grow"><small>Entrega · cliente</small><input class="addr" id="address" maxlength="180" placeholder="Buscar endereço do cliente" autocomplete="off" required></label>
+            <button type="submit" class="icon-btn" aria-label="Buscar endereço do cliente"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m10.5 10.5 3 3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
+          </form>
+        </div>
+        <div class="results" id="originResults" aria-live="polite"></div>
+        <div class="results" id="searchResults" aria-live="polite"></div>
+        <p class="hint" id="mapHint">Comece buscando o endereço de partida ou use a loja de exemplo.</p>
+        <div class="quick">
+          <button type="button" class="btn btn-plain" id="defaultOriginButton">Usar loja de exemplo</button>
+          <button type="button" class="btn btn-plain" id="demoButton">Usar cliente de exemplo</button>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="group-title">Área atendida <span class="aside num" id="graphInfo"></span></h2>
+        <div class="segmented" id="radius" role="group" aria-label="Raio de atendimento">
+          <span class="thumb" aria-hidden="true"></span>
+          <button type="button" data-km="5" aria-pressed="false">5 km</button>
+          <button type="button" data-km="10" aria-pressed="true">10 km</button>
+          <button type="button" data-km="15" aria-pressed="false">15 km</button>
+          <button type="button" data-km="20" aria-pressed="false">20 km</button>
+          <button type="button" data-km="custom" aria-pressed="false">Outro</button>
+        </div>
+        <label class="custom-radius" id="customRadiusRow" hidden>
+          <span>Raio personalizado</span>
+          <span class="custom-input"><input type="number" id="customRadius" min="3" max="20" step="0.5" value="12" inputmode="decimal" aria-describedby="customRadiusHelp"><span>km</span></span>
+        </label>
+        <p class="hint" id="customRadiusHelp" hidden>Entre 3 e 20 km.</p>
+        <button type="button" class="btn btn-raised" id="generateGraphButton" disabled>Gerar grafo desta região</button>
+        <p class="hint" id="graphGenerationStatus" aria-live="polite">Escolha a partida para gerar o grafo da região.</p>
+      </section>
+
+      <button type="button" class="btn btn-primary" id="confirmButton" disabled>Calcular rota</button>
+
+      <section id="resultCard" hidden aria-live="polite">
+        <div class="result-head">
+          <div class="result-km num" id="distanceBadge"></div>
+          <button type="button" class="btn btn-plain" id="toSim">Ver como foi calculado</button>
+        </div>
+        <p class="result-meta" id="routeMeta"></p>
+        <div class="group stops-group"><ol class="stops" id="stops"></ol></div>
+      </section>
+
+      <p class="foot"><span class="status-dot" aria-hidden="true"></span><span id="apiStatus">Carregando serviços…</span><br>Projeto acadêmico · mapa © colaboradores do OpenStreetMap · pesos em km</p>
+    </div>
+  </aside>
+
+  <aside class="panel right glass" id="right" aria-label="Como a rota foi calculada">
+    <div class="panel-scroll">
+      <div class="segmented" id="tabs" role="tablist" aria-label="Visualização">
+        <span class="thumb" aria-hidden="true"></span>
+        <button type="button" role="tab" aria-selected="true" aria-controls="view-sim" id="tab-sim">Dijkstra</button>
+        <button type="button" role="tab" aria-selected="false" aria-controls="view-matrix" id="tab-matrix">Matriz</button>
+        <button type="button" role="tab" aria-selected="false" aria-controls="view-edges" id="tab-edges">Ligações</button>
+      </div>
+
+      <div class="view" id="view-sim" role="tabpanel" aria-labelledby="tab-sim">
+        <div class="empty-state" id="simEmpty">
+          <h2>Passo a passo do Dijkstra</h2>
+          <p>Escolha a partida e o cliente e toque em <b>Calcular rota</b>. Aqui você acompanha como o algoritmo escolhe, ponto por ponto, o menor caminho.</p>
+        </div>
+        <div class="sim" id="sim" hidden>
+          <div class="player">
+            <h2 class="num" id="stepTitle"></h2>
+            <div class="transport">
+              <button type="button" class="round" id="restart" aria-label="Voltar ao início"><svg viewBox="0 0 14 14"><path d="M2.5 2.5v9M12 2.8 5.2 7 12 11.2z" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg></button>
+              <button type="button" class="round" id="prev" aria-label="Passo anterior"><svg viewBox="0 0 14 14"><path d="M9 2.5 4.5 7 9 11.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <button type="button" class="round play" id="play" aria-label="Reproduzir"><svg viewBox="0 0 14 14" id="playIcon"><path d="M4 2.5v9l7.5-4.5z" fill="currentColor"/></svg></button>
+              <button type="button" class="round" id="next" aria-label="Próximo passo"><svg viewBox="0 0 14 14"><path d="M5 2.5 9.5 7 5 11.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            </div>
+          </div>
+          <div class="track" id="track" role="slider" tabindex="0" aria-label="Passo da simulação" aria-valuemin="1"><i id="trackFill"></i></div>
+          <div class="group focus-card" aria-live="polite">
+            <span class="vbadge current" id="curBadge"></span>
+            <div><h3 id="curTitle"></h3><p id="curText"></p></div>
+          </div>
+          <section>
+            <h2 class="group-title" id="relaxTitle"></h2>
+            <div class="group relax" id="relax"></div>
+          </section>
+          <section>
+            <h2 class="group-title">Distâncias até agora <span class="aside" id="distLegend"></span></h2>
+            <div class="group dist" id="dist"></div>
+          </section>
+        </div>
+      </div>
+
+      <div class="view" id="view-matrix" role="tabpanel" aria-labelledby="tab-matrix" hidden>
+        <div>
+          <h2 class="view-title">Matriz de distâncias</h2>
+          <p class="view-sub">Cada linha é o ponto de saída e cada coluna é o de chegada, em km. Ruas de mão única só aparecem em um sentido. Em destaque, os trechos da rota.</p>
+        </div>
+        <p class="empty" id="matrixEmpty">A matriz aparece depois que o grafo da região for gerado.</p>
+        <div class="matrix-wrap" id="matrixWrap" hidden><table class="matrix" id="matrixTable"><caption class="sr">Matriz de adjacência ponderada, distâncias em quilômetros</caption></table></div>
+        <p class="cell-read num" id="cellRead">Passe o cursor sobre um valor para ler a ligação.</p>
+      </div>
+
+      <div class="view" id="view-edges" role="tabpanel" aria-labelledby="tab-edges" hidden>
+        <div>
+          <h2 class="view-title">Ligações do grafo</h2>
+          <p class="view-sub">Para onde dá para ir a partir de cada ponto, com a distância em km. Contorno indica mão única.</p>
+        </div>
+        <p class="empty" id="edgesEmpty">As ligações aparecem depois que o grafo da região for gerado.</p>
+        <div class="group edge-list" id="edgeList" hidden></div>
+      </div>
+    </div>
+  </aside>
+
+  <div id="toast" class="toast glass" role="alert" hidden></div>
+</div>
+<script src="/vendor/leaflet.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>
