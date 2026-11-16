@@ -505,5 +505,19 @@ $('themeBtn').onclick = () => {
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', paintThemeBtn);
 paintThemeBtn();
 
+/* ================= Tela de início ================= */
+function startApp() {
+  const splash = $('splash');
+  if (splash.classList.contains('leaving')) return;
+  $('app').inert = false;
+  splash.classList.add('leaving');
+  const done = () => { splash.hidden = true; $('originAddress').focus({ preventScroll: true }); };
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) done();
+  else splash.addEventListener('transitionend', done, { once: true });
+}
+$('splashStart').onclick = startApp;
+$('splash').addEventListener('keydown', e => { if (e.key === 'Escape') startApp(); });
+$('splashStart').focus();
+
 window.addEventListener('resize', () => map.invalidateSize());
 load();

@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
-<div class="app">
+<div class="app" id="app" inert>
   <div class="map-area">
     <div id="map" aria-label="Mapa com a área atendida, o grafo e a rota"></div>
     <div class="legend glass" aria-hidden="true">
@@ -166,6 +166,53 @@
 
   <div id="toast" class="toast glass" role="alert" hidden></div>
 </div>
+
+<div class="splash" id="splash" role="dialog" aria-modal="true" aria-labelledby="splashTitle">
+  <svg class="splash-net" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g class="net-edges">
+      <path d="M120 640 L300 520 L470 590 L640 430 L820 470 L1010 300 L1120 180"/>
+      <path d="M300 520 L360 330 L560 260 L640 430"/>
+      <path d="M560 260 L760 180 L1010 300"/>
+      <path d="M470 590 L700 700 L820 470"/>
+      <path d="M360 330 L180 230"/>
+      <path d="M760 180 L820 470"/>
+      <path d="M700 700 L960 640 L1010 300"/>
+    </g>
+    <path class="net-route net-casing" d="M120 640 L300 520 L470 590 L640 430 L820 470 L1010 300 L1120 180"/>
+    <path class="net-route" d="M120 640 L300 520 L470 590 L640 430 L820 470 L1010 300 L1120 180"/>
+    <g class="net-nodes">
+      <circle cx="300" cy="520" r="5"/><circle cx="470" cy="590" r="5"/><circle cx="640" cy="430" r="5"/>
+      <circle cx="820" cy="470" r="5"/><circle cx="1010" cy="300" r="5"/><circle cx="360" cy="330" r="5"/>
+      <circle cx="560" cy="260" r="5"/><circle cx="760" cy="180" r="5"/><circle cx="700" cy="700" r="5"/>
+      <circle cx="180" cy="230" r="5"/><circle cx="960" cy="640" r="5"/>
+    </g>
+    <circle class="net-end" cx="120" cy="640" r="9"/>
+    <circle class="net-end" cx="1120" cy="180" r="9"/>
+  </svg>
+
+  <div class="splash-body">
+    <div class="splash-mark">
+      <div class="app-icon" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 22 22"><path d="M4.5 16.5 9 10l4 3 4.5-7.5" fill="none" stroke="#c8ff2e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="4.5" cy="16.5" r="2" fill="#fff"/><circle cx="17.5" cy="5.5" r="2" fill="#fff"/></svg></div>
+      <span>Projeto acadêmico</span>
+    </div>
+    <h1 id="splashTitle">Routify</h1>
+    <p class="splash-claim">Menos voltas, <mark>mais entregas.</mark></p>
+    <p class="splash-text">Cada desvio custa tempo. O Routify encontra o menor caminho entre a loja e o cliente com o algoritmo de Dijkstra e mostra cada passo da decisão.</p>
+    <button type="button" class="btn btn-primary splash-start" id="splashStart">
+      Iniciar
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div class="splash-team">
+      <span class="splash-team-label">Desenvolvido por</span>
+      <ul>
+        <li>João Victor</li>
+        <li>Eduardo Dias</li>
+        <li>Vitória Silva</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
 <script src="/vendor/leaflet.js"></script>
 <script src="/js/app.js"></script>
 </body>
