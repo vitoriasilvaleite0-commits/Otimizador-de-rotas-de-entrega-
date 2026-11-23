@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class LocalTopologyGraphGeneratorTest {
   @Test
-  void generatesSixteenNewRoadPointsAroundTheChosenOrigin() {
+  void generatesThreeRingsOfNewRoadPointsAroundTheChosenOrigin() {
     Fixture fixture = new Fixture(false);
     Point origin = origin(-23.701167, -46.708291);
 
@@ -30,7 +30,7 @@ class LocalTopologyGraphGeneratorTest {
 
     assertEquals(LocalTopologyGraphGenerator.RADIAL_SOURCE, snapshot.source());
     assertFalse(snapshot.fallbackUsed());
-    assertEquals(17, snapshot.graph().points().size());
+    assertEquals(25, snapshot.graph().points().size());
     assertEquals("ORIGIN", snapshot.graph().points().getFirst().id());
     assertTrue(snapshot.graph().points().stream().skip(1)
         .allMatch(point -> point.id().matches("P\\d{2}")));
@@ -68,8 +68,8 @@ class LocalTopologyGraphGeneratorTest {
     GeneratedGraphSnapshot snapshot = fixture.generator.generate("large-radius",
         origin(-23.6500, -46.6500), 20);
 
-    assertEquals(33, snapshot.graph().points().size());
-    assertEquals(32, snapshot.graph().points().stream()
+    assertEquals(73, snapshot.graph().points().size());
+    assertEquals(72, snapshot.graph().points().stream()
         .filter(point -> point.id().startsWith("P")).count());
     snapshot.graph().points().stream().filter(point -> point.type() == PointType.INTERMEDIATE)
         .forEach(point -> assertTrue(snapshot.graph().edges().stream()
@@ -84,7 +84,7 @@ class LocalTopologyGraphGeneratorTest {
         origin(-23.6500, -46.6500), 10);
 
     assertEquals(LocalTopologyGraphGenerator.RADIAL_SOURCE, snapshot.source());
-    assertEquals(15, snapshot.graph().points().size());
+    assertEquals(35, snapshot.graph().points().size());
     assertTrue(snapshot.graph().points().stream().skip(1)
         .noneMatch(point -> point.name().startsWith("Ponto viário")));
   }

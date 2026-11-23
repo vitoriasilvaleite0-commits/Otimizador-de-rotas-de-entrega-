@@ -112,7 +112,7 @@ public class DynamicGraphService {
   }
 
   private String identifier(Point origin, double radiusKm) {
-    String value = String.format(Locale.ROOT, "%.5f|%.5f|%.2f|v1",
+    String value = String.format(Locale.ROOT, "%.5f|%.5f|%.2f|v2",
         origin.latitude(), origin.longitude(), radiusKm);
     try {
       byte[] hash = MessageDigest.getInstance("SHA-256")

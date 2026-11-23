@@ -29,8 +29,12 @@ public class LocalTopologyGraphGenerator {
   static final String SOURCE = "LOCAL_VERIFIED_TOPOLOGY_FALLBACK";
   static final String RADIAL_SOURCE = "OSRM_RADIAL_DYNAMIC";
   private static final int POINT_LIMIT = 8;
-  private static final int MAX_SECTORS = 16;
-  private static final double TARGET_ARC_KM = 5.5;
+  // Grafo mais denso: 3 anéis (25%, 50% e 75% do raio) e setores a cada ~4 km de arco.
+  // Com mais pontos, quase sempre há vértices perto do caminho entre a loja e o cliente,
+  // e o Dijkstra passa a escolher rotas por eles em vez da ligação direta.
+  private static final double[] RING_RATIOS = {.25, .50, .75};
+  private static final int MAX_SECTORS = 24;
+  private static final double TARGET_ARC_KM = 4.0;
   private static final double MAX_SNAP_METERS = 500;
   private static final int MIN_POINT_ACCESS_DEGREE = 2;
   private final GraphService graphs;
@@ -80,8 +84,8 @@ public class LocalTopologyGraphGenerator {
       if (snap.distanceMeters() > MAX_SNAP_METERS) continue;
       Point candidate = new Point(String.format(Locale.ROOT, "P%02d", radial.size() + 1),
           snap.roadName().isBlank() ? "Ponto viário " + (radial.size() + 1) : snap.roadName(),
-          String.format(Locale.ROOT, "Ponto viário gerado pelo OSRM — anel %s, setor %d",
-              target.ring() == 0 ? "interno" : "externo", target.sector() + 1),
+          String.format(Locale.ROOT, "Ponto viário gerado pelo OSRM — anel %d, setor %d",
+              target.ring() + 1, target.sector() + 1),
           snap.latitude(), snap.longitude(), PointType.INTERMEDIATE);
       if (points.stream().anyMatch(existing -> GraphService.haversine(existing, candidate) < .12))
         continue;
@@ -105,17 +109,21 @@ public class LocalTopologyGraphGenerator {
     if (radial.size() < properties.graphGeneration().minimumPoints()) return null;
 
     Map<String, Edge> edges = new LinkedHashMap<>();
-    List<RadialPoint> inner = radial.stream().filter(point -> point.ring() == 0)
-        .sorted(Comparator.comparingInt(RadialPoint::sector)).toList();
-    List<RadialPoint> outer = radial.stream().filter(point -> point.ring() == 1)
-        .sorted(Comparator.comparingInt(RadialPoint::sector)).toList();
-    for (RadialPoint point : inner) addPair(edges, origin, 0, point, distances, radiusKm);
-    addRing(edges, inner, distances, radiusKm);
-    addRing(edges, outer, distances, radiusKm);
-    for (RadialPoint point : inner) {
-      outer.stream().min(Comparator.comparingInt(other -> sectorDistance(point.sector(),
-          other.sector(), point.sectorCount()))).ifPresent(other ->
-          addPair(edges, point, other, distances, radiusKm));
+    List<List<RadialPoint>> rings = new ArrayList<>();
+    for (int ring = 0; ring < RING_RATIOS.length; ring++) {
+      final int current = ring;
+      rings.add(radial.stream().filter(point -> point.ring() == current)
+          .sorted(Comparator.comparingInt(RadialPoint::sector)).toList());
+    }
+    for (RadialPoint point : rings.getFirst()) addPair(edges, origin, 0, point, distances, radiusKm);
+    for (List<RadialPoint> ring : rings) addRing(edges, ring, distances, radiusKm);
+    for (int ring = 0; ring < rings.size() - 1; ring++) {
+      List<RadialPoint> next = rings.get(ring + 1);
+      for (RadialPoint point : rings.get(ring)) {
+        next.stream().min(Comparator.comparingDouble(other ->
+            GraphService.haversine(point.point(), other.point()))).ifPresent(other ->
+            addPair(edges, point, other, distances, radiusKm));
+      }
     }
     addNearestAlternatives(points, radial, edges, distances, radiusKm);
     Graph graph = new Graph(points, List.copyOf(edges.values()));
@@ -236,11 +244,13 @@ public class LocalTopologyGraphGenerator {
     targets.add(new TargetPoint(new Point("TARGET_ORIGIN", origin.name(), origin.address(),
         origin.latitude(), origin.longitude(), PointType.STORE), -1, -1, 0));
     int sectorCount = sectorCount(radiusKm);
-    for (int ring = 0; ring < 2; ring++) {
-      double ratio = ring == 0 ? .35 : .70;
+    for (int ring = 0; ring < RING_RATIOS.length; ring++) {
+      double ratio = RING_RATIOS[ring];
+      // anéis alternados ficam deslocados meio setor, para os pontos não se alinharem em raios
+      double offset = ring % 2 == 0 ? .5 : 1.0;
       for (int sector = 0; sector < sectorCount; sector++) {
         double sectorSize = 360.0 / sectorCount;
-        double angle = Math.toRadians(sector * sectorSize + sectorSize / 2);
+        double angle = Math.toRadians(sector * sectorSize + sectorSize * offset);
         double latitude = origin.latitude() + (radiusKm * ratio / 110.574) * Math.cos(angle);
         double longitude = origin.longitude() + (radiusKm * ratio
             / (111.320 * Math.max(.1, Math.cos(Math.toRadians(origin.latitude())))))
@@ -254,7 +264,8 @@ public class LocalTopologyGraphGenerator {
 
   private int sectorCount(double radiusKm) {
     int configured = properties.graphGeneration().sectors();
-    int required = (int) Math.ceil(2 * Math.PI * radiusKm * .70 / TARGET_ARC_KM);
+    double outerRatio = RING_RATIOS[RING_RATIOS.length - 1];
+    int required = (int) Math.ceil(2 * Math.PI * radiusKm * outerRatio / TARGET_ARC_KM);
     return Math.min(MAX_SECTORS, Math.max(configured, required));
   }
 
@@ -272,11 +283,6 @@ public class LocalTopologyGraphGenerator {
 
   private static long outDegree(String id, Map<String, Edge> edges) {
     return edges.values().stream().filter(edge -> edge.from().equals(id)).count();
-  }
-
-  private static int sectorDistance(int first, int second, int sectorCount) {
-    int difference = Math.abs(first - second);
-    return Math.min(difference, sectorCount - difference);
   }
 
   private static void add(Map<String, Edge> edges, Edge edge) {
