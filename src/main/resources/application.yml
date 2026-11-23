@@ -5,7 +5,10 @@ spring:
     serialization:
       indent-output: true
 server:
-  port: 8080
+  # Hospedagens como o Render informam a porta na variável PORT; localmente fica 8080.
+  port: ${PORT:8080}
+  compression:
+    enabled: true
 app:
   demo-mode: true
   store:
@@ -41,7 +44,9 @@ app:
   external:
     nominatim:
       base-url: https://nominatim.openstreetmap.org
-      user-agent: "RotaAcademicaZonaSul/1.0 (contato: exemplo-academico@localhost)"
+      # A política do Nominatim pede um contato real. No servidor, defina a variável
+      # NOMINATIM_USER_AGENT, por exemplo: "Routify/1.0 (contato: email-do-grupo@exemplo.com)".
+      user-agent: "${NOMINATIM_USER_AGENT:RotaAcademicaZonaSul/1.0 (contato: exemplo-academico@localhost)}"
       timeout-seconds: 5
       min-interval-millis: 1000
     osrm:

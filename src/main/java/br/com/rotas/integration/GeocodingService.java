@@ -15,6 +15,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class GeocodingService {
+  // Limite simples para o cache não crescer sem fim num servidor com pouca memória.
+  private static final int MAX_CACHE_ENTRIES=2000;
   private final AppProperties properties; private final HttpClient client; private final ObjectMapper mapper;
   private final Map<String,List<GeocodingResult>> cache=new ConcurrentHashMap<>(); private long lastRequestAt;
   @Autowired public GeocodingService(AppProperties properties,ObjectMapper mapper){this(properties,mapper,HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(properties.external().nominatim().timeoutSeconds())).build());}
@@ -28,7 +30,9 @@ public class GeocodingService {
   private List<GeocodingResult> search(String query,boolean broad){
     if(query==null||query.isBlank()) throw new ApiException(HttpStatus.BAD_REQUEST,"EMPTY_ADDRESS","Informe um endereço.");
     if(query.length()>180) throw new ApiException(HttpStatus.BAD_REQUEST,"ADDRESS_TOO_LONG","O endereço deve ter no máximo 180 caracteres.");
-    String key=(broad?"broad:":"region:")+normalize(query); return cache.computeIfAbsent(key,k->fetch(query,broad));
+    String key=(broad?"broad:":"region:")+normalize(query);
+    if(cache.size()>=MAX_CACHE_ENTRIES&&!cache.containsKey(key)) cache.clear();
+    return cache.computeIfAbsent(key,k->fetch(query,broad));
   }
   private List<GeocodingResult> fetch(String query,boolean broad){
     rateLimit(); var cfg=properties.external().nominatim();

@@ -1,0 +1,9 @@
+target
+.git
+.claude
+.idea
+.vscode
+docs
+Organização Squad
+*.pdf
+*.zip

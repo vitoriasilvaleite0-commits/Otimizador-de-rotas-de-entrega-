@@ -5,10 +5,11 @@ import br.com.rotas.domain.Point;
 import com.fasterxml.jackson.databind.*;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
-import java.net.URI;import java.net.http.*;import java.time.Duration;import java.util.*;import java.util.concurrent.ConcurrentHashMap;
+import java.net.URI;import java.net.http.*;import java.time.Duration;import java.util.*;import java.util.concurrent.ConcurrentHashMap;import java.util.function.Predicate;import java.util.function.Supplier;
 
 @Service
 public class RoutingService {
+  private static final int MAX_CACHE_ENTRIES=2000;
   private final AppProperties props;private final ObjectMapper mapper;private final HttpClient client;private final Map<String,RouteData> cache=new ConcurrentHashMap<>();
   private final Map<String,RouteTableData> tableCache=new ConcurrentHashMap<>();
   private final Map<String,SnappedRouteTableData> snappedTableCache=new ConcurrentHashMap<>();
@@ -16,18 +17,18 @@ public class RoutingService {
   @Autowired public RoutingService(AppProperties p,ObjectMapper m){this(p,m,HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(p.external().osrm().timeoutSeconds())).build());}
   RoutingService(AppProperties p,ObjectMapper m,HttpClient c){props=p;mapper=m;client=c;}
   public RouteData route(Point from,Point to,double fallbackKm){return routeThrough(List.of(from,to),fallbackKm);}
-  public RouteData routeThrough(List<Point> points,double fallbackKm){if(points==null||points.size()<2)throw new IllegalArgumentException("A rota exige ao menos dois pontos");String key=key(points);return cache.computeIfAbsent(key,k->fetch(points,fallbackKm));}
+  public RouteData routeThrough(List<Point> points,double fallbackKm){if(points==null||points.size()<2)throw new IllegalArgumentException("A rota exige ao menos dois pontos");String key=key(points);return cached(cache,key,()->fetch(points,fallbackKm),RouteData::fallback);}
   public RouteTableData distanceTable(List<Point> points) {
     if(points==null||points.size()<2)throw new IllegalArgumentException("A matriz exige ao menos dois pontos");
-    String key="table:"+key(points);return tableCache.computeIfAbsent(key,k->fetchTable(points));
+    String key="table:"+key(points);return cached(tableCache,key,()->fetchTable(points),RouteTableData::fallback);
   }
   public SnappedRouteTableData snappedDistanceTable(List<Point> points) {
     if(points==null||points.size()<2)throw new IllegalArgumentException("A matriz exige ao menos dois pontos");
-    String key="snapped-table:"+key(points);return snappedTableCache.computeIfAbsent(key,k->fetchSnappedTable(points));
+    String key="snapped-table:"+key(points);return cached(snappedTableCache,key,()->fetchSnappedTable(points),SnappedRouteTableData::fallback);
   }
   public RoadSnapData snap(Point point) {
     String key=String.format(Locale.ROOT,"snap:%.5f,%.5f",point.latitude(),point.longitude());
-    return snapCache.computeIfAbsent(key,k->fetchSnap(point));
+    return cached(snapCache,key,()->fetchSnap(point),RoadSnapData::fallback);
   }
   private RouteData fetch(List<Point> points,double fallback){var cfg=props.external().osrm();String coords=points.stream().map(p->p.longitude()+","+p.latitude()).collect(java.util.stream.Collectors.joining(";"));URI uri=URI.create(cfg.baseUrl()+"/route/v1/driving/"+coords+"?overview=full&geometries=geojson&steps=false");
     try{var req=HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(cfg.timeoutSeconds())).header("User-Agent",props.external().nominatim().userAgent()).GET().build();var res=client.send(req,HttpResponse.BodyHandlers.ofString());if(res.statusCode()!=200)return fallback(fallback);JsonNode r=mapper.readTree(res.body()).path("routes").path(0);if(r.isMissingNode())return fallback(fallback);List<double[]> geometry=new ArrayList<>();for(JsonNode c:r.path("geometry").path("coordinates"))geometry.add(new double[]{c.path(1).asDouble(),c.path(0).asDouble()});return new RouteData(RouteData.metersToKilometers(r.path("distance").asDouble()),r.path("duration").asDouble(),geometry,false);}catch(Exception e){return fallback(fallback);}}
@@ -82,5 +83,13 @@ public class RoutingService {
   private static double haversine(Point a,Point b){double r=6371,dLat=Math.toRadians(b.latitude()-a.latitude()),dLon=Math.toRadians(b.longitude()-a.longitude());double value=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(Math.toRadians(a.latitude()))*Math.cos(Math.toRadians(b.latitude()))*Math.sin(dLon/2)*Math.sin(dLon/2);return 2*r*Math.asin(Math.sqrt(value));}
   private String coordinates(List<Point> points){return points.stream().map(p->p.longitude()+","+p.latitude()).collect(java.util.stream.Collectors.joining(";"));}
   private String key(List<Point> points){return points.stream().map(p->String.format(Locale.ROOT,"%.5f,%.5f",p.latitude(),p.longitude())).collect(java.util.stream.Collectors.joining(">"));}
+  // Só guarda respostas reais do OSRM: uma estimativa de contingência (servidor fora do ar ou
+  // limitando pedidos) não pode ficar presa no cache, senão a rota nunca volta a usar as ruas.
+  private static <T> T cached(Map<String,T> store,String key,Supplier<T> fetch,Predicate<T> isFallback){
+    T hit=store.get(key);if(hit!=null)return hit;
+    T value=fetch.get();
+    if(!isFallback.test(value)){if(store.size()>=MAX_CACHE_ENTRIES)store.clear();store.put(key,value);}
+    return value;
+  }
   public int cacheSize(){return cache.size()+tableCache.size()+snappedTableCache.size()+snapCache.size();}
 }
