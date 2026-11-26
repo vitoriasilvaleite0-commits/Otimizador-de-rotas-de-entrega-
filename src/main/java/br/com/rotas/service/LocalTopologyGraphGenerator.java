@@ -55,7 +55,7 @@ public class LocalTopologyGraphGenerator {
   public GeneratedGraphSnapshot generate(String id, Point requestedOrigin, double radiusKm) {
     if (!covers(requestedOrigin)) {
       throw new ApiException(HttpStatus.BAD_REQUEST, "OUTSIDE_LOCAL_TOPOLOGY",
-          "A origem está fora da cobertura topológica local do projeto.");
+          "Por enquanto, o Routify só atende lojas na Zona Sul de São Paulo.");
     }
     List<TargetPoint> targets = radialTargets(requestedOrigin, radiusKm);
     SnappedRouteTableData table = routing.snappedDistanceTable(
