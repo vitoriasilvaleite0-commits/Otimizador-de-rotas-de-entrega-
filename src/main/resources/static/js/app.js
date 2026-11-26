@@ -39,6 +39,12 @@ function inRegion(lat, lon) {
   return inside;
 }
 const resultInRegion = result => inRegion(result.latitude, result.longitude);
+const samePoint = (place, lat, lon) => !!place && Math.abs(place.latitude - lat) < 1e-7 && Math.abs(place.longitude - lon) < 1e-7;
+// Endereço de um ponto clicado no mapa (busca reversa no Nominatim). Se falhar, devolve null.
+async function addressAt(lat, lon) {
+  try { return (await fetch(`/api/geocoding/reverse?latitude=${lat}&longitude=${lon}`).then(check)).displayName || null; }
+  catch (error) { return null; }
+}
 
 const ICON_HOME = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 5.5 6 2l4 3.5V10H7.5V7.5h-3V10H2z" fill="currentColor"/></svg>';
 const ICON_PIN = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.2a3.3 3.3 0 0 0-3.3 3.3C2.7 7 6 10.8 6 10.8S9.3 7 9.3 4.5A3.3 3.3 0 0 0 6 1.2zm0 4.6a1.3 1.3 0 1 1 0-2.6 1.3 1.3 0 0 1 0 2.6z" fill="currentColor"/></svg>';
@@ -303,6 +309,12 @@ $('generateGraphButton').addEventListener('click', async () => {
     state.areaReady = true; setClientLocked(false); showRegion(false);
     // o raio usado passa a ser o da loja cadastrada
     if (state.store && state.store.radiusKm !== radiusKm) { state.store.radiusKm = radiusKm; writeStore(state.store); }
+    // a loja foi movida no mapa: a posição (e o endereço) usados passam a ser os da loja salva
+    const used = state.selectedOrigin;
+    if (state.store && used && !samePoint(state.store, used.latitude, used.longitude)) {
+      Object.assign(state.store, {latitude: used.latitude, longitude: used.longitude, address: used.address});
+      writeStore(state.store); renderStoreCard();
+    }
     const intermediates = data.graph.points.filter(p => p.type === 'INTERMEDIATE').length;
     const source = data.graphSource === 'OSRM_RADIAL_DYNAMIC' ? 'pontos novos nas ruas e pesos do OSRM'
       : data.graphSource?.startsWith('LOCAL_') ? 'pontos locais verificados e pesos aproximados'
@@ -354,13 +366,23 @@ map.on('click', event => {
   if (state.editMode === 'origin' && state.selectedOrigin) {
     if (!inRegion(lat, lng)) { toast(`Esse ponto fica fora da região atendida. ${OUT_OF_REGION}`); return; }
     state.selectedOrigin.latitude = lat; state.selectedOrigin.longitude = lng; showRegion(false);
-    if (!/ajustada no mapa/.test(state.selectedOrigin.address)) state.selectedOrigin.address += ' (posição ajustada no mapa)';
-    if (!state.originMarker) state.originMarker = L.marker(event.latlng, {icon: pinIcon('origin', 'Nova partida', true), zIndexOffset: 900}).addTo(map);
+    state.selectedOrigin.address = 'Ponto escolhido no mapa'; $('originAddress').value = state.selectedOrigin.address;
+    if (!state.originMarker) state.originMarker = L.marker(event.latlng, {icon: pinIcon('origin', 'Loja', true), zIndexOffset: 900}).addTo(map);
     else state.originMarker.setLatLng(event.latlng);
-    setHint(`Partida ajustada para ${lat.toFixed(5)}, ${lng.toFixed(5)}. Gere o grafo para usar essa posição.`);
+    setHint('Loja movida para este ponto. Gere a área de entrega para usar essa posição.');
+    // troca "Ponto escolhido no mapa" pelo endereço de verdade, se o ponto ainda for esse quando a resposta chegar
+    addressAt(lat, lng).then(address => {
+      if (!address) return;
+      if (samePoint(state.selectedOrigin, lat, lng)) { state.selectedOrigin.address = address; $('originAddress').value = address; }
+      if (samePoint(state.store, lat, lng)) { state.store.address = address; writeStore(state.store); renderStoreCard(); }
+    });
   } else if (state.editMode === 'customer' && state.selected && state.customerMarker) {
     state.selected.latitude = lat; state.selected.longitude = lng; state.customerMarker.setLatLng(event.latlng);
-    setHint(`Entrega ajustada para ${lat.toFixed(5)}, ${lng.toFixed(5)}.`);
+    state.selected.address = 'Ponto escolhido no mapa'; $('address').value = state.selected.address;
+    setHint('Entrega movida para este ponto.');
+    addressAt(lat, lng).then(address => {
+      if (address && samePoint(state.selected, lat, lng)) { state.selected.address = address; $('address').value = address; }
+    });
   }
 });
 
