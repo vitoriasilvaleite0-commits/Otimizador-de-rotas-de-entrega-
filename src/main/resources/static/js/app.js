@@ -132,7 +132,7 @@ function drawServiceArea(points) {
   state.serviceAreaLayer = L.polygon(points.map(p => [p.latitude, p.longitude]), {pane: 'serviceArea', className: 'area', interactive: false}).addTo(map);
 }
 
-// Contorno da região permitida para a loja: aparece enquanto a área de entrega ainda não foi gerada.
+// Contorno da região permitida: aparece só quando a loja está fora dela, para mostrar onde ela pode ficar.
 function showRegion(visible) {
   if (state.regionLayer) { map.removeLayer(state.regionLayer); state.regionLayer = null; }
   const ring = state.fixed?.serviceArea;
@@ -186,10 +186,6 @@ async function load() {
     const [graph, status] = await Promise.all([fetch('/api/graph').then(check), fetch('/api/status').then(check)]);
     // O mapa abre limpo: o grafo de demonstração fica guardado e só aparece se o usuário usar os exemplos.
     state.fixed = graph;
-    if (!state.areaReady) {
-      showRegion(true);
-      if (!state.store) map.fitBounds(state.regionLayer.getBounds(), {padding: [24, 24]});
-    }
     $('apiStatus').textContent = status.dynamicGraphEnabled
       ? (status.demoMode ? 'Geração dinâmica ativa, com fallback local' : 'Geração híbrida ativa, com fallback local')
       : 'Modo fixo, com fallback local';
@@ -239,7 +235,7 @@ $('defaultOriginButton').addEventListener('click', () => {
 function selectOrigin(result, pan, isStore = false) {
   invalidateArea('A loja mudou. Gere a área de entrega de novo.');
   state.selectedOrigin = {name: result.name || 'Origem escolhida', address: result.displayName, latitude: result.latitude, longitude: result.longitude};
-  state.editMode = 'origin';
+  state.editMode = 'origin'; showRegion(false);
   $('originAddress').value = result.displayName;
   if (state.originMarker) map.removeLayer(state.originMarker);
   state.originMarker = L.marker([result.latitude, result.longitude], {icon: pinIcon('origin', 'Loja', true), zIndexOffset: 900}).addTo(map);
@@ -262,7 +258,7 @@ function invalidateArea(reason) {
   if (!state.areaReady) return;
   state.areaReady = false; state.graph = null; state.graphId = null; state.ids = []; state.matrix = [];
   state.path = []; state.routeKeys = new Set(); state.segments = [];
-  clearGraphLayers(); drawServiceArea(null); showRegion(true);
+  clearGraphLayers(); drawServiceArea(null);
   resetSimulation(); clearDestination(); setClientLocked(true);
   $('graphInfo').textContent = '';
   $('matrixEmpty').hidden = false; $('matrixWrap').hidden = true;
@@ -357,7 +353,7 @@ map.on('click', event => {
   const {lat, lng} = event.latlng;
   if (state.editMode === 'origin' && state.selectedOrigin) {
     if (!inRegion(lat, lng)) { toast(`Esse ponto fica fora da região atendida. ${OUT_OF_REGION}`); return; }
-    state.selectedOrigin.latitude = lat; state.selectedOrigin.longitude = lng;
+    state.selectedOrigin.latitude = lat; state.selectedOrigin.longitude = lng; showRegion(false);
     if (!/ajustada no mapa/.test(state.selectedOrigin.address)) state.selectedOrigin.address += ' (posição ajustada no mapa)';
     if (!state.originMarker) state.originMarker = L.marker(event.latlng, {icon: pinIcon('origin', 'Nova partida', true), zIndexOffset: 900}).addTo(map);
     else state.originMarker.setLatLng(event.latlng);
@@ -743,6 +739,7 @@ function renderStoreCard() {
 function warnOutsideRegion() {
   const status = $('graphGenerationStatus'); status.className = 'hint err';
   status.textContent = `Essa loja fica fora da região atendida. ${OUT_OF_REGION} Edite a loja e escolha outro endereço.`;
+  showRegion(true);
   if (!state.regionLayer || !state.selectedOrigin) return;
   // cópia dos limites: getBounds() devolve o objeto interno do polígono, e extend() o alteraria
   const bounds = L.latLngBounds(state.regionLayer.getLatLngs()[0]).extend([state.selectedOrigin.latitude, state.selectedOrigin.longitude]);
