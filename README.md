@@ -29,6 +29,14 @@ Você cadastra a loja (nome, endereço, raio de atendimento e quanto cobra por k
 
 Os dados da loja ficam salvos só no navegador de quem está usando. Não tem cadastro nem login.
 
+### Onde a loja pode ficar
+
+Por enquanto, **só lojas na Zona Sul de São Paulo**. A região vai mais ou menos do Ibirapuera e da Vila Mariana até o Grajaú, e da Saúde e do Jabaquara até o Campo Limpo, passando por Moema, Campo Belo, Brooklin, Santo Amaro, Interlagos e Cidade Ademar. O cliente pode estar em qualquer ponto dentro do raio de entrega, mesmo que passe um pouco dessa borda.
+
+Se o endereço da loja estiver fora, ele aparece bloqueado na busca, e o mapa mostra o contorno da região permitida.
+
+O limite existe por causa do plano B: quando o serviço de distâncias (OSRM) não responde, o Routify monta a área com um grafo de reserva, feito com pontos já conferidos da Zona Sul. Fora dessa região não haveria reserva. O desenho da região fica em [`application.yml`](src/main/resources/application.yml), e o mesmo contorno é conferido no navegador e no servidor.
+
 Quer só testar? Use a **loja de exemplo** (Av. Jabaquara, em São Paulo) e o **cliente de exemplo**.
 
 <p align="center">
@@ -66,6 +74,7 @@ Quando o cliente está perto da loja, muitas vezes o melhor caminho é a ligaç�
 
 ## Limitações
 
+- A loja precisa ficar na **Zona Sul de São Paulo** (veja [Onde a loja pode ficar](#onde-a-loja-pode-ficar)).
 - O grafo é uma **amostra** das ruas, feita para estudo. Não é um mapa completo da cidade.
 - As distâncias vêm do servidor público do OSRM, que não considera trânsito.
 - O site está no plano gratuito do Render. Se ficar muito tempo sem acesso, a primeira abertura pode levar perto de um minuto.
