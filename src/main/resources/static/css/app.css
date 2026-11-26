@@ -39,6 +39,9 @@
   --blue: #1f2226;
   --blue-soft: rgba(200, 255, 46, 0.5);
   --blue-line: rgba(31, 34, 38, 0.45);
+  /* ligações "em teste" no mapa: precisam de cor própria, diferente do limão da rota */
+  --testing: #1f2226;
+  --testing-soft: rgba(31, 34, 38, 0.45);
   --danger: #d93a2b;
   --origin: #1f2226;
   --visited: #1f2226;
@@ -67,7 +70,7 @@
     --cell: #111c38; --grouped: rgba(237, 241, 247, 0.05); --control: rgba(237, 241, 247, 0.06); --control-hover: rgba(237, 241, 247, 0.11); --thumb: #17244a;
     --material: rgba(15, 25, 52, 0.97); --material-edge: rgba(255, 255, 255, 0.06); --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 20px 48px rgba(0, 0, 0, 0.55);
     --neu-hi: rgba(255, 255, 255, 0.045); --neu-lo: rgba(0, 0, 0, 0.5);
-    --blue: #c8ff2e; --blue-soft: rgba(200, 255, 46, 0.16); --blue-line: rgba(200, 255, 46, 0.55); --danger: #ff6b5e;
+    --blue: #c8ff2e; --blue-soft: rgba(200, 255, 46, 0.16); --blue-line: rgba(200, 255, 46, 0.55); --testing: #4fc3ff; --testing-soft: rgba(79, 195, 255, 0.5); --danger: #ff6b5e;
     --origin: #edf1f7; --visited: #edf1f7; --visited-ring: #0b1530;
     --map-bg: #0a1329; --map-halo: #0a1329;
     --tile-opacity: 0.8; --tile-filter: invert(1) hue-rotate(180deg) saturate(0.2) brightness(0.9) contrast(1.1);
@@ -81,7 +84,7 @@
   --cell: #111c38; --grouped: rgba(237, 241, 247, 0.05); --control: rgba(237, 241, 247, 0.06); --control-hover: rgba(237, 241, 247, 0.11); --thumb: #17244a;
   --material: rgba(15, 25, 52, 0.97); --material-edge: rgba(255, 255, 255, 0.06); --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 20px 48px rgba(0, 0, 0, 0.55);
   --neu-hi: rgba(255, 255, 255, 0.045); --neu-lo: rgba(0, 0, 0, 0.5);
-  --blue: #c8ff2e; --blue-soft: rgba(200, 255, 46, 0.16); --blue-line: rgba(200, 255, 46, 0.55); --danger: #ff6b5e;
+  --blue: #c8ff2e; --blue-soft: rgba(200, 255, 46, 0.16); --blue-line: rgba(200, 255, 46, 0.55); --testing: #4fc3ff; --testing-soft: rgba(79, 195, 255, 0.5); --danger: #ff6b5e;
   --origin: #edf1f7; --visited: #edf1f7; --visited-ring: #0b1530;
   --map-bg: #0a1329; --map-halo: #0a1329;
   --tile-opacity: 0.8; --tile-filter: invert(1) hue-rotate(180deg) saturate(0.2) brightness(0.9) contrast(1.1);
@@ -127,8 +130,8 @@ path.region { fill: var(--label); fill-opacity: 0.04; stroke: var(--label-2); st
 .leaflet-tooltip.region-label span { font-weight: 500; color: var(--label-2); }
 .leaflet-tooltip.region-label::before { display: none; }
 path.edge { stroke: var(--graph-edge); stroke-width: 1.4; stroke-dasharray: 3 4; fill: none; transition: stroke 200ms, stroke-width 200ms, opacity 200ms; }
-path.edge.tree { stroke: var(--blue-line); stroke-dasharray: none; stroke-width: 1.8; opacity: .7; }
-path.edge.active { stroke: var(--blue); stroke-dasharray: none; stroke-width: 3.2; opacity: 1; }
+path.edge.tree { stroke: var(--testing-soft); stroke-dasharray: none; stroke-width: 1.8; opacity: .7; }
+path.edge.active { stroke: var(--testing); stroke-dasharray: none; stroke-width: 3.2; opacity: 1; }
 path.route-casing { stroke: var(--route-casing); stroke-width: 6; fill: none; stroke-linecap: round; stroke-linejoin: round; transition: opacity 300ms; }
 path.route { stroke: var(--lime); stroke-width: 3.5; fill: none; stroke-linecap: round; stroke-linejoin: round; transition: opacity 300ms; }
 path.route.schematic { stroke-dasharray: 8 7; }
@@ -139,7 +142,7 @@ path.route.schematic { stroke-dasharray: 8 7; }
 .vtx .halo { position: absolute; inset: -11px; border-radius: 50%; background: var(--lime); opacity: 0; transition: opacity 200ms; }
 .vtx .lbl { position: absolute; left: 14px; top: -15px; font-size: 11px; font-weight: 600; line-height: 15px; padding: 0 4px; border-radius: 4px; background: var(--material); color: var(--label); white-space: nowrap; }
 .vtx.dim .lbl { color: var(--label-2); }
-.vtx.queued .dot { border-color: var(--blue); }
+.vtx.queued .dot { border-color: var(--testing); }
 .vtx.visited .dot { background: var(--visited); border-color: var(--visited-ring); border-width: 2px; }
 .vtx.current .dot { background: var(--lime); border-color: var(--navy); border-width: 2.5px; transform: scale(1.3); }
 .vtx.current .halo { opacity: .35; animation: breathe 0.9s ease-in-out 2; }
