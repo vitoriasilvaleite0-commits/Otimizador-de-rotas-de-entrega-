@@ -20,9 +20,25 @@ function toast(message) {
 }
 async function check(response) {
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.message || 'Não foi possível concluir a operação.');
+  if (!response.ok) { const error = new Error(body.message || 'Não foi possível concluir a operação.'); error.code = body.code; throw error; }
   return body;
 }
+
+/* ===== Região onde a loja pode ficar (o mesmo polígono que o backend confere) ===== */
+const REGION_NAME = 'Zona Sul de São Paulo';
+const OUT_OF_REGION = `Por enquanto, o Routify só atende lojas na ${REGION_NAME}.`;
+function inRegion(lat, lon) {
+  const ring = state.fixed?.serviceArea;
+  if (!ring || ring.length < 3) return true; // sem o polígono carregado, quem decide é o backend
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[j], b = ring[i];
+    if ((a.latitude > lat) !== (b.latitude > lat)
+        && lon < (b.longitude - a.longitude) * (lat - a.latitude) / (b.latitude - a.latitude) + a.longitude) inside = !inside;
+  }
+  return inside;
+}
+const resultInRegion = result => inRegion(result.latitude, result.longitude);
 
 const ICON_HOME = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 5.5 6 2l4 3.5V10H7.5V7.5h-3V10H2z" fill="currentColor"/></svg>';
 const ICON_PIN = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.2a3.3 3.3 0 0 0-3.3 3.3C2.7 7 6 10.8 6 10.8S9.3 7 9.3 4.5A3.3 3.3 0 0 0 6 1.2zm0 4.6a1.3 1.3 0 1 1 0-2.6 1.3 1.3 0 0 1 0 2.6z" fill="currentColor"/></svg>';
@@ -116,6 +132,16 @@ function drawServiceArea(points) {
   state.serviceAreaLayer = L.polygon(points.map(p => [p.latitude, p.longitude]), {pane: 'serviceArea', className: 'area', interactive: false}).addTo(map);
 }
 
+// Contorno da região permitida: aparece só quando a loja está fora dela, para mostrar onde ela pode ficar.
+function showRegion(visible) {
+  if (state.regionLayer) { map.removeLayer(state.regionLayer); state.regionLayer = null; }
+  const ring = state.fixed?.serviceArea;
+  if (!visible || !ring?.length) return;
+  state.regionLayer = L.polygon(ring.map(p => [p.latitude, p.longitude]), {pane: 'serviceArea', className: 'region', interactive: false})
+    .bindTooltip(`Lojas só nesta região<br><span>${REGION_NAME}</span>`, {permanent: true, direction: 'center', className: 'region-label'})
+    .addTo(map);
+}
+
 /* ================= Matriz e ligações ================= */
 function renderMatrix() {
   const table = $('matrixTable'); table.querySelectorAll('thead, tbody').forEach(n => n.remove());
@@ -177,14 +203,19 @@ function applyGraph(data, dynamic) {
   resetSimulation(); clearDestination();
 }
 
-function renderResults(container, results, onSelect) {
+// allowed (opcional) diz se o endereço pode ser escolhido; os que não podem aparecem apagados e no fim.
+function renderResults(container, results, onSelect, allowed = () => true) {
   const box = $(container); box.replaceChildren();
   if (!results.length) { const p = document.createElement('p'); p.textContent = 'Nenhum endereço encontrado. Tente com número e bairro.'; box.append(p); return; }
-  results.forEach(result => {
+  const sorted = [...results].sort((a, b) => allowed(b) - allowed(a));
+  if (!allowed(sorted[0])) { const p = document.createElement('p'); p.textContent = `Esse endereço fica fora da região atendida. ${OUT_OF_REGION}`; box.append(p); }
+  sorted.forEach(result => {
+    const ok = allowed(result);
     const button = document.createElement('button'); button.type = 'button';
     const [first, ...rest] = result.displayName.split(', ');
-    button.innerHTML = `<b>${esc(first)}</b>${esc(rest.join(', '))}`;
-    button.addEventListener('click', () => { box.replaceChildren(); onSelect(result); });
+    button.innerHTML = `<b>${esc(first)}</b>${esc(rest.join(', '))}${ok ? '' : '<small>Fora da região atendida</small>'}`;
+    if (ok) button.addEventListener('click', () => { box.replaceChildren(); onSelect(result); });
+    else { button.disabled = true; button.className = 'out'; }
     box.append(button);
   });
 }
@@ -194,7 +225,7 @@ $('originSearchForm').addEventListener('submit', async event => {
   event.preventDefault(); searching('originResults'); $('searchResults').replaceChildren();
   try {
     const results = await fetch('/api/geocoding/search?scope=origin&query=' + encodeURIComponent($('originAddress').value)).then(check);
-    renderResults('originResults', results, r => selectOrigin(r, true));
+    renderResults('originResults', results, r => selectOrigin(r, true), resultInRegion);
   } catch (error) { $('originResults').replaceChildren(); toast(error.message); }
 });
 $('defaultOriginButton').addEventListener('click', () => {
@@ -204,7 +235,7 @@ $('defaultOriginButton').addEventListener('click', () => {
 function selectOrigin(result, pan, isStore = false) {
   invalidateArea('A loja mudou. Gere a área de entrega de novo.');
   state.selectedOrigin = {name: result.name || 'Origem escolhida', address: result.displayName, latitude: result.latitude, longitude: result.longitude};
-  state.editMode = 'origin';
+  state.editMode = 'origin'; showRegion(false);
   $('originAddress').value = result.displayName;
   if (state.originMarker) map.removeLayer(state.originMarker);
   state.originMarker = L.marker([result.latitude, result.longitude], {icon: pinIcon('origin', 'Loja', true), zIndexOffset: 900}).addTo(map);
@@ -269,7 +300,7 @@ $('generateGraphButton').addEventListener('click', async () => {
       body: JSON.stringify({...state.selectedOrigin, radiusKm, forceRefresh: false})}).then(check);
     if (state.originMarker) { map.removeLayer(state.originMarker); state.originMarker = null; }
     applyGraph(data, true); state.editMode = null;
-    state.areaReady = true; setClientLocked(false);
+    state.areaReady = true; setClientLocked(false); showRegion(false);
     // o raio usado passa a ser o da loja cadastrada
     if (state.store && state.store.radiusKm !== radiusKm) { state.store.radiusKm = radiusKm; writeStore(state.store); }
     const intermediates = data.graph.points.filter(p => p.type === 'INTERMEDIATE').length;
@@ -283,7 +314,11 @@ $('generateGraphButton').addEventListener('click', async () => {
     setHint('Loja definida. Agora escolha o cliente dentro da área.');
     $('address').focus();
   } catch (error) {
-    status.className = 'hint err'; status.textContent = 'A área não foi gerada. Tente de novo ou mude o raio.'; toast(error.message);
+    status.className = 'hint err';
+    if (error.code === 'OUTSIDE_LOCAL_TOPOLOGY') warnOutsideRegion();
+    else {
+      status.textContent = 'A área não foi gerada. Tente de novo ou mude o raio.'; toast(error.message);
+    }
   } finally { button.textContent = 'Gerar área de entrega'; validateCustomRadius(); }
 });
 
@@ -317,7 +352,8 @@ function selectCustomer(result) {
 map.on('click', event => {
   const {lat, lng} = event.latlng;
   if (state.editMode === 'origin' && state.selectedOrigin) {
-    state.selectedOrigin.latitude = lat; state.selectedOrigin.longitude = lng;
+    if (!inRegion(lat, lng)) { toast(`Esse ponto fica fora da região atendida. ${OUT_OF_REGION}`); return; }
+    state.selectedOrigin.latitude = lat; state.selectedOrigin.longitude = lng; showRegion(false);
     if (!/ajustada no mapa/.test(state.selectedOrigin.address)) state.selectedOrigin.address += ' (posição ajustada no mapa)';
     if (!state.originMarker) state.originMarker = L.marker(event.latlng, {icon: pinIcon('origin', 'Nova partida', true), zIndexOffset: 900}).addTo(map);
     else state.originMarker.setLatLng(event.latlng);
@@ -611,6 +647,7 @@ function writeStore(s) {
 }
 state.store = readStore();
 const setup = {place: null};
+const SETUP_HINT = `Digite o endereço e toque na lupa. Por enquanto, só lojas na ${REGION_NAME}.`;
 
 const parsePrice = raw => { const t = String(raw).trim().replace(/\s|R\$/g, '').replace(',', '.'); return t === '' ? NaN : Number(t); };
 const money = v => v.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
@@ -638,7 +675,7 @@ function openSetup() {
   $('setupAddress').value = s?.address || '';
   $('setupResults').replaceChildren();
   const hint = $('setupAddressHint');
-  hint.className = s ? 'hint ok' : 'hint'; hint.textContent = s ? 'Endereço escolhido.' : 'Digite o endereço e toque na lupa.';
+  hint.className = s ? 'hint ok' : 'hint'; hint.textContent = s ? 'Endereço escolhido.' : SETUP_HINT;
   $('setupPrice').value = (s?.pricePerKm ?? 2).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const km = String([5, 10, 15, 20].includes(s?.radiusKm) ? s.radiusKm : 10);
   $('setupRadius').querySelector(`[data-km="${km}"]`).click();
@@ -656,14 +693,14 @@ async function searchSetupAddress() {
   searching('setupResults');
   try {
     const results = await fetch('/api/geocoding/search?scope=origin&query=' + encodeURIComponent(query)).then(check);
-    renderResults('setupResults', results, pickSetupPlace);
+    renderResults('setupResults', results, pickSetupPlace, resultInRegion);
   } catch (error) { $('setupResults').replaceChildren(); toast(error.message); }
 }
 $('setupSearch').onclick = searchSetupAddress;
 $('setupAddress').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); searchSetupAddress(); } });
 $('setupAddress').addEventListener('input', () => {
   if (setup.place && $('setupAddress').value !== setup.place.displayName) {
-    setup.place = null; const hint = $('setupAddressHint'); hint.className = 'hint'; hint.textContent = 'Digite o endereço e toque na lupa.';
+    setup.place = null; const hint = $('setupAddressHint'); hint.className = 'hint'; hint.textContent = SETUP_HINT;
     validateSetup();
   }
 });
@@ -698,13 +735,26 @@ function renderStoreCard() {
   $('storeAddress').textContent = s.address;
   $('storePrice').textContent = `${money(s.pricePerKm)} por km`;
 }
+// Loja fora da região: explica e afasta o mapa para mostrar a loja e a região permitida juntas.
+function warnOutsideRegion() {
+  const status = $('graphGenerationStatus'); status.className = 'hint err';
+  status.textContent = `Essa loja fica fora da região atendida. ${OUT_OF_REGION} Edite a loja e escolha outro endereço.`;
+  showRegion(true);
+  if (!state.regionLayer || !state.selectedOrigin) return;
+  // cópia dos limites: getBounds() devolve o objeto interno do polígono, e extend() o alteraria
+  const bounds = L.latLngBounds(state.regionLayer.getLatLngs()[0]).extend([state.selectedOrigin.latitude, state.selectedOrigin.longitude]);
+  map.fitBounds(bounds, {padding: [40, 40]});
+}
 // Usa a loja cadastrada: posiciona, escolhe o raio salvo e já gera a área de entrega.
 function applyStore(s) {
   renderStoreCard();
-  selectOrigin({displayName: s.address, latitude: s.latitude, longitude: s.longitude, name: s.name || 'Loja'}, true, true);
+  // loja salva antes desta regra, fora da região: avisa direto, sem pedir uma área que o servidor recusaria
+  const outside = !inRegion(s.latitude, s.longitude);
+  selectOrigin({displayName: s.address, latitude: s.latitude, longitude: s.longitude, name: s.name || 'Loja'}, !outside, true);
   const preset = $('radius').querySelector(`[data-km="${s.radiusKm}"]`);
   if (preset) preset.click();
   else { $('radius').querySelector('[data-km="custom"]').click(); $('customRadius').value = s.radiusKm; validateCustomRadius(); }
+  if (outside) { warnOutsideRegion(); return; }
   setHint('Loja cadastrada. Gerando a área de entrega…');
   $('generateGraphButton').click();
 }
